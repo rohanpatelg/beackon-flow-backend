@@ -13,7 +13,10 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@supabase/supabase-js": "^2.75.0",
     "@types/cookie-parser": "^1.4.8",
+    "@types/uuid": "^10.0.0",
+    "axios": "^1.12.2",
     "bcryptjs": "^3.0.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -26,6 +29,7 @@
     "pg": "^8.15.6",
     "supertest": "^7.1.0",
     "swagger-ui-express": "^5.0.1",
+    "uuid": "^13.0.0",
     "winston": "^3.17.0",
     "zod": "^3.24.4"
   },

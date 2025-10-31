@@ -1,0 +1,314 @@
+import axios from 'axios';
+import crypto from 'crypto';
+import { v4 as uuidv4 } from 'uuid';
+import { pool } from '@/config/database';
+
+export interface LinkedInUserProfile {
+  sub: string;
+  name: string;
+  email: string;
+  picture?: string;
+}
+
+export interface LinkedInTokenResponse {
+  access_token: string;
+  expires_in: number;
+  refresh_token?: string;
+  scope: string;
+}
+
+export class LinkedInService {
+  private readonly CLIENT_ID = process.env.LINKEDIN_CLIENT_ID || '';
+  private readonly CLIENT_SECRET = process.env.LINKEDIN_CLIENT_SECRET || '';
+  private readonly REDIRECT_URI = process.env.LINKEDIN_REDIRECT_URI || '';
+  private readonly SCOPES = 'openid profile email w_member_social';
+
+  /**
+   * Generate PKCE code verifier and challenge
+   */
+  private generateCodeVerifier(): string {
+    return crypto.randomBytes(32).toString('base64url');
+  }
+
+  private async generateCodeChallenge(verifier: string): Promise<string> {
+    const hash = crypto.createHash('sha256').update(verifier).digest();
+    return hash.toString('base64url');
+  }
+
+  /**
+   * Create OAuth authorization URL and store session
+   */
+  async initiateOAuth(userId?: number, returnUrl?: string): Promise<{ authUrl: string; state: string }> {
+    // Generate state for CSRF protection
+    const state = uuidv4();
+
+    // Generate PKCE verifier
+    const codeVerifier = this.generateCodeVerifier();
+    const codeChallenge = await this.generateCodeChallenge(codeVerifier);
+
+    // Store auth session in database
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    await pool.query(
+      `INSERT INTO linkedin_auth_sessions (user_id, state, code_verifier, return_url, expires_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [userId || null, state, codeVerifier, returnUrl || null, expiresAt]
+    );
+
+    // Build authorization URL
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: this.CLIENT_ID,
+      redirect_uri: this.REDIRECT_URI,
+      state,
+      scope: this.SCOPES,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+    });
+
+    const authUrl = `https://www.linkedin.com/oauth/v2/authorization?${params.toString()}`;
+
+    return { authUrl, state };
+  }
+
+  /**
+   * Exchange authorization code for access token
+   */
+  async exchangeCodeForToken(code: string, state: string): Promise<LinkedInTokenResponse> {
+    // Retrieve and validate session
+    const sessionResult = await pool.query(
+      `SELECT * FROM linkedin_auth_sessions
+       WHERE state = $1 AND expires_at > NOW()`,
+      [state]
+    );
+
+    if (sessionResult.rows.length === 0) {
+      throw new Error('Invalid or expired OAuth state');
+    }
+
+    const session = sessionResult.rows[0];
+    const codeVerifier = session.code_verifier;
+
+    // Exchange code for token
+    const params = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      client_id: this.CLIENT_ID,
+      client_secret: this.CLIENT_SECRET,
+      redirect_uri: this.REDIRECT_URI,
+      code_verifier: codeVerifier,
+    });
+
+    try {
+      const response = await axios.post(
+        'https://www.linkedin.com/oauth/v2/accessToken',
+        params,
+        {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        }
+      );
+
+      // Clean up session after successful exchange
+      await pool.query(
+        `DELETE FROM linkedin_auth_sessions WHERE state = $1`,
+        [state]
+      );
+
+      return response.data;
+    } catch (error: any) {
+      console.error('LinkedIn token exchange error:', error.response?.data || error.message);
+      throw new Error('Failed to exchange authorization code for token');
+    }
+  }
+
+  /**
+   * Get LinkedIn user profile from access token
+   */
+  async getUserProfile(accessToken: string): Promise<LinkedInUserProfile> {
+    try {
+      const response = await axios.get('https://api.linkedin.com/v2/userinfo', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      return response.data;
+    } catch (error: any) {
+      console.error('LinkedIn profile fetch error:', error.response?.data || error.message);
+      throw new Error('Failed to fetch LinkedIn user profile');
+    }
+  }
+
+  /**
+   * Store or update LinkedIn token in database
+   */
+  async storeToken(
+    userId: number,
+    tokenData: LinkedInTokenResponse,
+    profile: LinkedInUserProfile
+  ): Promise<void> {
+    const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000);
+
+    await pool.query(
+      `INSERT INTO linkedin_tokens
+       (user_id, access_token, refresh_token, expires_at, scope, linkedin_id, linkedin_email, linkedin_name, linkedin_picture, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+       ON CONFLICT (user_id)
+       DO UPDATE SET
+         access_token = $2,
+         refresh_token = $3,
+         expires_at = $4,
+         scope = $5,
+         linkedin_id = $6,
+         linkedin_email = $7,
+         linkedin_name = $8,
+         linkedin_picture = $9,
+         updated_at = NOW()`,
+      [
+        userId,
+        tokenData.access_token,
+        tokenData.refresh_token || null,
+        expiresAt,
+        tokenData.scope,
+        profile.sub,
+        profile.email,
+        profile.name,
+        profile.picture || null,
+      ]
+    );
+
+    // Also update linkedin_id in m_users table
+    await pool.query(
+      `UPDATE m_users SET linkedin_id = $1 WHERE id = $2`,
+      [profile.sub, userId]
+    );
+  }
+
+  /**
+   * Get stored LinkedIn token for a user
+   */
+  async getToken(userId: number): Promise<any> {
+    const result = await pool.query(
+      `SELECT * FROM linkedin_tokens WHERE user_id = $1`,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return result.rows[0];
+  }
+
+  /**
+   * Check if token is expired
+   */
+  async isTokenValid(userId: number): Promise<boolean> {
+    const result = await pool.query(
+      `SELECT expires_at FROM linkedin_tokens
+       WHERE user_id = $1 AND expires_at > NOW()`,
+      [userId]
+    );
+
+    return result.rows.length > 0;
+  }
+
+  /**
+   * Publish a post to LinkedIn
+   */
+  async publishPost(
+    accessToken: string,
+    linkedinId: string,
+    postText: string
+  ): Promise<any> {
+    // Validate post text length
+    if (!postText || postText.trim().length === 0) {
+      throw new Error('Post content cannot be empty');
+    }
+
+    if (postText.length > 3000) {
+      throw new Error('Post content exceeds maximum length of 3000 characters');
+    }
+
+    const postData = {
+      author: `urn:li:person:${linkedinId}`,
+      lifecycleState: 'PUBLISHED',
+      specificContent: {
+        'com.linkedin.ugc.ShareContent': {
+          shareCommentary: {
+            text: postText,
+          },
+          shareMediaCategory: 'NONE',
+        },
+      },
+      visibility: {
+        'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC',
+      },
+    };
+
+    try {
+      const response = await axios.post(
+        'https://api.linkedin.com/v2/ugcPosts',
+        postData,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            'X-Restli-Protocol-Version': '2.0.0',
+          },
+        }
+      );
+
+      return response.data;
+    } catch (error: any) {
+      console.error('LinkedIn post error:', error.response?.data || error.message);
+
+      if (error.response?.status === 401) {
+        throw new Error('LinkedIn access token expired or invalid');
+      }
+
+      throw new Error('Failed to publish LinkedIn post');
+    }
+  }
+
+  /**
+   * Verify token ownership by email
+   */
+  async verifyTokenOwnership(accessToken: string, expectedEmail: string): Promise<boolean> {
+    try {
+      const profile = await this.getUserProfile(accessToken);
+      return profile.email.toLowerCase() === expectedEmail.toLowerCase();
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Revoke LinkedIn token (delete from database)
+   */
+  async revokeToken(userId: number): Promise<void> {
+    await pool.query(
+      `DELETE FROM linkedin_tokens WHERE user_id = $1`,
+      [userId]
+    );
+
+    await pool.query(
+      `UPDATE m_users SET linkedin_id = NULL WHERE id = $1`,
+      [userId]
+    );
+  }
+
+  /**
+   * Clean up expired auth sessions (run periodically)
+   */
+  async cleanupExpiredSessions(): Promise<number> {
+    const result = await pool.query(
+      `DELETE FROM linkedin_auth_sessions WHERE expires_at < NOW()`
+    );
+
+    return result.rowCount || 0;
+  }
+}
+
+// Export singleton instance
+export const linkedinService = new LinkedInService();

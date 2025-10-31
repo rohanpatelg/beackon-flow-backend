@@ -2,7 +2,8 @@ import { Pool } from 'pg';
 import dotenv from 'dotenv';
 dotenv.config();
 const databaseUrl = process.env.DATABASE_URL;
-
+console.log(databaseUrl);
+console.log(process.env.NODE_ENV);
 // Create a single connection pool for the entire application
 export const pool = new Pool({
   connectionString: databaseUrl,
@@ -12,7 +13,7 @@ export const pool = new Pool({
 });
 
 // Test the connection and log the result
-pool.query('SELECT NOW()', (err: any, res: any) => {
+pool.query('SELECT NOW()', (err: any, res: any) => { 
   if (err) {
     console.error('Database connection error:', err);
   } else {

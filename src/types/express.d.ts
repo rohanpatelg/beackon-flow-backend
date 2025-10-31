@@ -9,6 +9,7 @@ declare module 'express-serve-static-core' {
          is_active: boolean;
          is_email_verified: boolean;
          roles: string[];
+         linkedin_id?: string;
       };
    }
 } 

@@ -229,4 +229,7 @@ export const isOwnerOfSpecificBusiness: RequestHandler = async (req: Request, re
          message: 'Authorization verification failed'
       });
    }
-}; 
+};
+
+// Alias for isAuth for better naming
+export const authenticateToken = isAuth; 
