@@ -1,13 +1,17 @@
 import express, { Router } from 'express';
-import authRoutes from './authRoutes';
 import linkedinRoutes from './linkedinRoutes';
+import postsRoutes from './postsRoutes';
+import onboardingRoutes from './onboardingRoutes';
 
 const router: Router = express.Router();
 
-// Auth routes (public)
-router.use('/auth', authRoutes);
-
 // LinkedIn routes
 router.use('/linkedin', linkedinRoutes);
+
+// Posts routes
+router.use('/posts', postsRoutes);
+
+// Onboarding routes
+router.use('/onboarding', onboardingRoutes);
 
 export default router; 

@@ -3,7 +3,11 @@ import {
   getLinkedInStatus,
   publishLinkedInPost,
   disconnectLinkedIn,
-} from '@/controllers/linkedinController';
+  generateHooks,
+  generatePost,
+  recommendContentIntention,
+  getSuggestion,
+} from '../controllers/linkedinController';
 import { validateSupabaseToken } from '@/middlewares/supabaseAuth';
 
 const router: Router = express.Router();
@@ -34,5 +38,36 @@ router.post('/publish', validateSupabaseToken, publishLinkedInPost);
  * @access  Private (requires Supabase JWT)
  */
 router.delete('/disconnect', validateSupabaseToken, disconnectLinkedIn);
+
+/**
+ * @route   POST /api/linkedin/generate-hooks
+ * @desc    Generate LinkedIn post hooks from a topic using AI
+ * @access  Private (requires Supabase JWT)
+ * @body    { topic: string }
+ */
+router.post('/generate-hooks', validateSupabaseToken, generateHooks);
+
+/**
+ * @route   POST /api/linkedin/generate-post
+ * @desc    Generate LinkedIn post content from a hook using AI
+ * @access  Private (requires Supabase JWT)
+ * @body    { hook: string, topic: string, intention?: string }
+ */
+router.post('/generate-post', validateSupabaseToken, generatePost);
+
+/**
+ * @route   POST /api/linkedin/recommend-intention
+ * @desc    Get AI recommendation for best content framework
+ * @access  Private (requires Supabase JWT)
+ * @body    { hook: string, topic: string }
+ */
+router.post('/recommend-intention', validateSupabaseToken, recommendContentIntention);
+
+/**
+ * @route   POST /api/linkedin/get-suggestion
+ * @desc    Get a suggestion for a LinkedIn post
+ * @access  Private (requires Supabase JWT)
+ */
+router.post('/get-suggestion', validateSupabaseToken, getSuggestion);
 
 export default router;
