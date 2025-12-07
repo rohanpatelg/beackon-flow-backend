@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { generateHooksFromTopic, generatePostFromHook, recommendIntention, publishToLinkedIn } from '@/services/linkedinService';
+import { generateHooksFromTopic, generatePostFromHook, recommendIntention, publishToLinkedIn, regenerateSection as regenerateSectionService, SectionKey, PostSections } from '@/services/linkedinService';
 import { updatePostLinkedInMetadata, updatePostStatusInDb } from '@/repositories/postsRepository';
 
 /**
@@ -44,6 +44,7 @@ export const generateHooks = async (req: Request, res: Response): Promise<void> 
 
 /**
  * Generate LinkedIn post from a hook
+ * Returns structured sections for granular editing
  * @route POST /api/linkedin/generate-post
  */
 export const generatePost = async (req: Request, res: Response): Promise<void> => {
@@ -81,7 +82,7 @@ export const generatePost = async (req: Request, res: Response): Promise<void> =
     res.status(200).json({
       success: true,
       data: {
-        linkedin_post: result.linkedin_post,
+        sections: result.sections,
         design_idea: result.design_idea,
         hook: hook.trim(),
       },
@@ -132,6 +133,77 @@ export const recommendContentIntention = async (req: Request, res: Response): Pr
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to recommend intention',
+    });
+  }
+};
+
+/**
+ * Regenerate a specific section of a post
+ * @route POST /api/linkedin/regenerate-section
+ * @body { section: SectionKey, hook: string, topic: string, current_sections: PostSections, intention?: string }
+ */
+export const regeneratePostSection = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { section, hook, topic, current_sections, intention } = req.body;
+
+    // Validate section key
+    const validSections: SectionKey[] = ['intro', 'main_insight', 'supporting_detail', 'shift_takeaway', 'cta'];
+    if (!section || !validSections.includes(section)) {
+      res.status(400).json({
+        success: false,
+        message: `Invalid section. Must be one of: ${validSections.join(', ')}`,
+      });
+      return;
+    }
+
+    // Validate hook
+    if (!hook || typeof hook !== 'string' || hook.trim().length === 0) {
+      res.status(400).json({
+        success: false,
+        message: 'Hook is required and must be a non-empty string',
+      });
+      return;
+    }
+
+    // Validate topic
+    if (!topic || typeof topic !== 'string' || topic.trim().length === 0) {
+      res.status(400).json({
+        success: false,
+        message: 'Topic is required and must be a non-empty string',
+      });
+      return;
+    }
+
+    // Validate current_sections
+    if (!current_sections || typeof current_sections !== 'object') {
+      res.status(400).json({
+        success: false,
+        message: 'Current sections object is required',
+      });
+      return;
+    }
+
+    // Regenerate the section
+    const newSectionContent = await regenerateSectionService(
+      section,
+      hook.trim(),
+      topic.trim(),
+      current_sections as PostSections,
+      intention?.trim()
+    );
+
+    res.status(200).json({
+      success: true,
+      data: {
+        section,
+        content: newSectionContent,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error in regeneratePostSection controller:', error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to regenerate section',
     });
   }
 };

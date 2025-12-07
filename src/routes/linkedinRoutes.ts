@@ -6,6 +6,7 @@ import {
   generateHooks,
   generatePost,
   recommendContentIntention,
+  regeneratePostSection,
   getSuggestion,
 } from '../controllers/linkedinController';
 import { validateSupabaseToken } from '@/middlewares/supabaseAuth';
@@ -62,6 +63,14 @@ router.post('/generate-post', validateSupabaseToken, generatePost);
  * @body    { hook: string, topic: string }
  */
 router.post('/recommend-intention', validateSupabaseToken, recommendContentIntention);
+
+/**
+ * @route   POST /api/linkedin/regenerate-section
+ * @desc    Regenerate a specific section of a post
+ * @access  Private (requires Supabase JWT)
+ * @body    { section: string, hook: string, topic: string, current_sections: object, intention?: string }
+ */
+router.post('/regenerate-section', validateSupabaseToken, regeneratePostSection);
 
 /**
  * @route   POST /api/linkedin/get-suggestion

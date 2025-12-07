@@ -73,7 +73,19 @@ Return ONLY a JSON array of strings, nothing else. Example format:
 };
 
 /**
+ * Post sections structure for structured post generation
+ */
+export interface PostSections {
+  intro: string;
+  main_insight: string;
+  supporting_detail: string;
+  shift_takeaway: string;
+  cta: string;
+}
+
+/**
  * Generate LinkedIn post content from a hook using AI
+ * Returns structured sections for granular editing
  * @param hook - The selected hook
  * @param topic - The original topic
  * @param intention - Content framework/structure to follow
@@ -84,7 +96,7 @@ export const generatePostFromHook = async (
   topic: string,
   intention?: string,
   userProfile?: any
-): Promise<{ linkedin_post: string; design_idea: string }> => {
+): Promise<{ sections: PostSections; design_idea: string }> => {
   // Framework-specific instructions
   const frameworkInstructions: { [key: string]: string } = {
     'Story → Insight → Shift': 'Share a personal story or example, extract a key insight from it, then show how that insight shifts perspective or challenges assumptions.',
@@ -100,35 +112,46 @@ export const generatePostFromHook = async (
 
   const frameworkGuidance = intention && frameworkInstructions[intention]
     ? `\n\nIMPORTANT - Follow this content framework: "${intention}"
-Structure your post using this pattern: ${frameworkInstructions[intention]}`
+Structure your post sections using this pattern: ${frameworkInstructions[intention]}`
     : '';
 
   const systemPrompt = `You are an expert LinkedIn content creator who writes engaging, professional posts.
 
-Your task is to create a complete LinkedIn post based on the given hook and topic, plus a design/visual idea.${frameworkGuidance}
+Your task is to create LinkedIn post content in STRUCTURED SECTIONS based on the given hook and topic.${frameworkGuidance}
 
-Guidelines for the post:
-- Start with the provided hook
-- Expand on the topic with valuable insights
-- Use short paragraphs and line breaks for readability
-- Include relevant emojis sparingly (1-3 max)
-- End with a call-to-action or question to encourage engagement
-- Keep it under 1300 characters (LinkedIn's limit)
-- Professional yet conversational tone
+The hook is already provided and will be used as-is. You need to generate the remaining sections that flow naturally from the hook.
+
+Guidelines for each section:
+- intro: Introduction that connects to the hook and sets up the problem/context (1-2 sentences)
+- main_insight: The core insight, main point, or key message (2-3 sentences)
+- supporting_detail: Evidence, proof, example, visualization description, or quote that supports the main insight (2-3 sentences)
+- shift_takeaway: A perspective shift or key takeaway for the reader (1-2 sentences)
+- cta: A call-to-action or engaging question to encourage comments (1 sentence)
+
+Overall guidelines:
+- Each section should flow naturally into the next
+- Use professional yet conversational tone
+- Include relevant emojis sparingly (1-2 total across all sections)
+- Keep total content under 1000 characters (hook adds ~200 more)
 ${intention ? `- Structure the content following the "${intention}" framework pattern` : ''}
 
 Guidelines for design idea:
 - Suggest a simple visual or graphic idea that complements the post
 - Keep it practical and easy to create
-- Can be: infographic, quote card, photo idea, chart, etc.
 
 Return ONLY a JSON object with this exact format:
 {
-  "linkedin_post": "The complete post text here...",
+  "intro": "Introduction/problem statement here...",
+  "main_insight": "Core insight or main point here...",
+  "supporting_detail": "Evidence, proof, or example here...",
+  "shift_takeaway": "Key takeaway or perspective shift here...",
+  "cta": "Call-to-action or question here...",
   "design_idea": "Description of visual/design suggestion here"
 }`;
 
-  let userPrompt = `Hook: ${hook}\n\nTopic: ${topic}`;
+  let userPrompt = `Hook (will be used as-is at the start of the post): "${hook}"
+
+Topic: ${topic}`;
 
   if (intention) {
     userPrompt += `\n\nContent Framework: ${intention}`;
@@ -150,17 +173,107 @@ Return ONLY a JSON object with this exact format:
     // Parse the JSON response
     const result = JSON.parse(response);
 
-    if (!result.linkedin_post || !result.design_idea) {
-      throw new Error('Invalid response format from AI');
+    if (!result.intro || !result.main_insight || !result.supporting_detail || !result.shift_takeaway || !result.cta || !result.design_idea) {
+      throw new Error('Invalid response format from AI - missing required sections');
     }
 
     return {
-      linkedin_post: result.linkedin_post,
+      sections: {
+        intro: result.intro,
+        main_insight: result.main_insight,
+        supporting_detail: result.supporting_detail,
+        shift_takeaway: result.shift_takeaway,
+        cta: result.cta,
+      },
       design_idea: result.design_idea,
     };
   } catch (error: any) {
     console.error('Error generating post:', error.message);
     throw new Error(`Failed to generate post: ${error.message}`);
+  }
+};
+
+/**
+ * Section key type for regeneration
+ */
+export type SectionKey = keyof PostSections;
+
+/**
+ * Section descriptions for context-aware regeneration
+ */
+const SECTION_DESCRIPTIONS: Record<SectionKey, string> = {
+  intro: 'Introduction that connects to the hook and sets up the problem/context (1-2 sentences)',
+  main_insight: 'The core insight, main point, or key message (2-3 sentences)',
+  supporting_detail: 'Evidence, proof, example, visualization description, or quote that supports the main insight (2-3 sentences)',
+  shift_takeaway: 'A perspective shift or key takeaway for the reader (1-2 sentences)',
+  cta: 'A call-to-action or engaging question to encourage comments (1 sentence)',
+};
+
+/**
+ * Regenerate a specific section of the post while maintaining context
+ * @param sectionKey - Which section to regenerate
+ * @param hook - The post hook
+ * @param topic - The original topic
+ * @param currentSections - All current sections for context
+ * @param intention - Optional content framework
+ */
+export const regenerateSection = async (
+  sectionKey: SectionKey,
+  hook: string,
+  topic: string,
+  currentSections: PostSections,
+  intention?: string
+): Promise<string> => {
+  const sectionDescription = SECTION_DESCRIPTIONS[sectionKey];
+
+  const systemPrompt = `You are an expert LinkedIn content creator. Your task is to regenerate ONE specific section of a LinkedIn post while keeping it coherent with the other sections.
+
+You are regenerating the "${sectionKey}" section.
+
+Section requirements:
+${sectionDescription}
+
+Guidelines:
+- Make it different from the current version but maintain coherence with the rest of the post
+- Use professional yet conversational tone
+- Keep the same general message but express it differently
+- You may add 1 emoji if appropriate
+- Ensure it flows naturally with the sections before and after it
+
+Return ONLY the new section text, nothing else. No quotes, no labels, just the text.`;
+
+  let userPrompt = `Topic: ${topic}
+${intention ? `Content Framework: ${intention}` : ''}
+
+Current post structure:
+---
+HOOK: ${hook}
+
+INTRO: ${currentSections.intro}
+
+MAIN INSIGHT: ${currentSections.main_insight}
+
+SUPPORTING DETAIL: ${currentSections.supporting_detail}
+
+TAKEAWAY: ${currentSections.shift_takeaway}
+
+CTA: ${currentSections.cta}
+---
+
+Please generate a NEW version of the "${sectionKey}" section that is different from the current one but flows well with the other sections.`;
+
+  try {
+    const response = await generateChatCompletion(
+      systemPrompt,
+      userPrompt,
+      'gpt-4o-mini',
+      0.9 // Higher temperature for variety
+    );
+
+    return response.trim();
+  } catch (error: any) {
+    console.error('Error regenerating section:', error.message);
+    throw new Error(`Failed to regenerate section: ${error.message}`);
   }
 };
 
