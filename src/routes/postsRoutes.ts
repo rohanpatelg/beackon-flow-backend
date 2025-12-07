@@ -5,6 +5,7 @@ import {
   updatePost,
   deleteUserPost,
   updateUserPostStatus,
+  createUserDraftPost,
 } from '@/controllers/postsController';
 import { validateSupabaseToken } from '@/middlewares/supabaseAuth';
 
@@ -23,6 +24,14 @@ const router: Router = express.Router();
  * @query   pageSize - Items per page (default: 10)
  */
 router.get('/', validateSupabaseToken, fetchUserPosts);
+
+/**
+ * @route   POST /api/posts
+ * @desc    Create a new draft post
+ * @access  Private (requires Supabase JWT)
+ * @body    { hook: string, post_content: string }
+ */
+router.post('/', validateSupabaseToken, createUserDraftPost);
 
 /**
  * @route   GET /api/posts/:id

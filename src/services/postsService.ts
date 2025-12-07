@@ -7,6 +7,7 @@ import {
   insertDraftPostInDb,
   FetchPostsOptions,
   UserPost,
+  PostSections,
 } from '@/repositories/postsRepository';
 
 /**
@@ -24,14 +25,15 @@ export const getPostById = async (postId: number, userId: string): Promise<UserP
 };
 
 /**
- * Update post content
+ * Update post content and optionally sections
  */
 export const updatePostContent = async (
   postId: number,
   userId: string,
-  content: string
+  content: string,
+  sections?: PostSections
 ): Promise<UserPost> => {
-  return await updatePostInDb(postId, userId, content);
+  return await updatePostInDb(postId, userId, content, sections);
 };
 
 /**
@@ -58,7 +60,10 @@ export const updatePostStatus = async (
 export const createDraftPost = async (
   userId: string,
   hook: string,
-  postContent: string
+  postContent: string,
+  sections?: PostSections,
+  topic?: string,
+  intention?: string
 ): Promise<UserPost> => {
-  return await insertDraftPostInDb(userId, hook, postContent);
+  return await insertDraftPostInDb(userId, hook, postContent, sections, topic, intention);
 };

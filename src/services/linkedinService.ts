@@ -240,7 +240,13 @@ Guidelines:
 - You may add 1 emoji if appropriate
 - Ensure it flows naturally with the sections before and after it
 
-Return ONLY the new section text, nothing else. No quotes, no labels, just the text.`;
+CRITICAL: Return ONLY the raw content text for this section.
+DO NOT include:
+- Section names or labels (like "INTRO:", "Main Insight:", etc.)
+- Quotes around the text
+- Any prefixes or formatting markers
+
+Just output the actual content that would appear in the post, nothing else.`;
 
   let userPrompt = `Topic: ${topic}
 ${intention ? `Content Framework: ${intention}` : ''}

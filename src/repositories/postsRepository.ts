@@ -7,11 +7,24 @@ export interface FetchPostsOptions {
   pageSize?: number;
 }
 
+// Structured sections for post editing
+export interface PostSections {
+  hook: string;
+  intro: string;
+  main_insight: string;
+  supporting_detail: string;
+  shift_takeaway: string;
+  cta: string;
+}
+
 export interface UserPost {
   id: number;
   auth_user_id: string;
   hook: string;
   post: string;
+  sections?: PostSections;  // Structured sections for editing
+  topic?: string;           // Original topic for regeneration
+  intention?: string;       // Content framework for regeneration
   status: number;
   created_at: string;
   updated_at: string;
@@ -102,18 +115,35 @@ export const getPostByIdFromDb = async (postId: number, userId: string): Promise
 };
 
 /**
- * Update post content
+ * Update post content and optionally sections
  */
-export const updatePostInDb = async (postId: number, userId: string, content: string): Promise<UserPost> => {
-  const query = `
-    UPDATE public.m_users_posts
-    SET post = $1, updated_at = NOW()
-    WHERE id = $2 AND auth_user_id = $3 AND is_deleted = false
-    RETURNING *
-  `;
+export const updatePostInDb = async (
+  postId: number,
+  userId: string,
+  content: string,
+  sections?: PostSections
+): Promise<UserPost> => {
+  // Build query based on whether sections are provided
+  const query = sections
+    ? `
+      UPDATE public.m_users_posts
+      SET post = $1, sections = $2, updated_at = NOW()
+      WHERE id = $3 AND auth_user_id = $4 AND is_deleted = false
+      RETURNING *
+    `
+    : `
+      UPDATE public.m_users_posts
+      SET post = $1, updated_at = NOW()
+      WHERE id = $2 AND auth_user_id = $3 AND is_deleted = false
+      RETURNING *
+    `;
+
+  const params = sections
+    ? [content, JSON.stringify(sections), postId, userId]
+    : [content, postId, userId];
 
   try {
-    const result = await pool.query(query, [content, postId, userId]);
+    const result = await pool.query(query, params);
 
     if (result.rows.length === 0) {
       throw new Error('Post not found or you do not have permission to update it');
@@ -175,18 +205,27 @@ export const updatePostStatusInDb = async (postId: number, userId: string, statu
  */
 export const insertDraftPostInDb = async (
   userId: string,
-  
   hook: string,
-  postContent: string
+  postContent: string,
+  sections?: PostSections,
+  topic?: string,
+  intention?: string
 ): Promise<UserPost> => {
   const query = `
-    INSERT INTO public.m_users_posts (auth_user_id, hook, post, status, created_at, updated_at, is_deleted)
-    VALUES ($1, $2, $3, 1, NOW(), NOW(), false)
+    INSERT INTO public.m_users_posts (auth_user_id, hook, post, sections, topic, intention, status, created_at, updated_at, is_deleted)
+    VALUES ($1, $2, $3, $4, $5, $6, 1, NOW(), NOW(), false)
     RETURNING *
   `;
 
   try {
-    const result = await pool.query(query, [userId, hook, postContent]);
+    const result = await pool.query(query, [
+      userId,
+      hook,
+      postContent,
+      sections ? JSON.stringify(sections) : null,
+      topic || null,
+      intention || null
+    ]);
     return result.rows[0];
   } catch (error: any) {
     console.error('Error inserting draft post:', error);

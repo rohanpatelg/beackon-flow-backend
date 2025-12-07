@@ -5,6 +5,7 @@ import {
   updatePostContent,
   deletePost,
   updatePostStatus,
+  createDraftPost,
 } from '@/services/postsService';
 
 /**
@@ -103,13 +104,13 @@ export const fetchPostById = async (req: Request, res: Response): Promise<void> 
 /**
  * Update post content
  * @route PATCH /api/posts/:id
- * @body { content: string }
+ * @body { content: string, sections?: PostSections }
  */
 export const updatePost = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.supabaseUser?.id;
     const postId = parseInt(req.params.id);
-    const { content } = req.body;
+    const { content, sections } = req.body;
 
     if (!userId) {
       res.status(401).json({
@@ -135,7 +136,7 @@ export const updatePost = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    const updatedPost = await updatePostContent(postId, userId, content.trim());
+    const updatedPost = await updatePostContent(postId, userId, content.trim(), sections);
 
     res.status(200).json({
       success: true,
@@ -236,6 +237,55 @@ export const updateUserPostStatus = async (req: Request, res: Response): Promise
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to update post status',
+    });
+  }
+};
+
+/**
+ * Create a new draft post
+ * @route POST /api/posts
+ * @body { hook: string, post_content: string, sections?: PostSections, topic?: string, intention?: string }
+ */
+export const createUserDraftPost = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.supabaseUser?.id;
+    const { hook, post_content, sections, topic, intention } = req.body;
+
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      });
+      return;
+    }
+
+    if (!hook || typeof hook !== 'string' || hook.trim().length === 0) {
+      res.status(400).json({
+        success: false,
+        message: 'Hook is required and must be a non-empty string',
+      });
+      return;
+    }
+
+    if (!post_content || typeof post_content !== 'string' || post_content.trim().length === 0) {
+      res.status(400).json({
+        success: false,
+        message: 'Post content is required and must be a non-empty string',
+      });
+      return;
+    }
+
+    const savedPost = await createDraftPost(userId, hook.trim(), post_content.trim(), sections, topic, intention);
+
+    res.status(201).json({
+      success: true,
+      data: savedPost,
+    });
+  } catch (error: any) {
+    console.error('Error in createUserDraftPost controller:', error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to create draft post',
     });
   }
 };

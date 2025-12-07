@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { generateHooksFromTopic, generatePostFromHook, recommendIntention, publishToLinkedIn, regenerateSection as regenerateSectionService, SectionKey, PostSections } from '@/services/linkedinService';
-import { updatePostLinkedInMetadata, updatePostStatusInDb } from '@/repositories/postsRepository';
+import { updatePostLinkedInMetadata, updatePostStatusInDb, insertDraftPostInDb } from '@/repositories/postsRepository';
 
 /**
  * Generate hooks from a topic
@@ -211,11 +211,11 @@ export const regeneratePostSection = async (req: Request, res: Response): Promis
 /**
  * Publish post to LinkedIn
  * @route POST /api/linkedin/publish
- * @body { post_text: string, linkedin_token: string, generated_post_id?: number }
+ * @body { post_text: string, linkedin_token: string, generated_post_id?: number, hook?: string, sections?: PostSections, topic?: string, intention?: string }
  */
 export const publishLinkedInPost = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { post_text, linkedin_token, generated_post_id } = req.body;
+    const { post_text, linkedin_token, generated_post_id, hook, sections, topic, intention } = req.body;
     const userId = req.supabaseUser?.id;
 
     // Validate required fields
@@ -265,11 +265,28 @@ export const publishLinkedInPost = async (req: Request, res: Response): Promise<
       return;
     }
 
-    // If we have a generated_post_id, update the database with LinkedIn metadata
-    if (generated_post_id && publishResult.postId) {
+    // Determine the post ID to use
+    let postIdToUpdate = generated_post_id;
+
+    // If no generated_post_id, auto-create a draft post first
+    if (!generated_post_id) {
+      try {
+        // Use hook from request or extract first line as hook
+        const postHook = hook || post_text.split('\n')[0] || 'Published post';
+        const savedPost = await insertDraftPostInDb(userId, postHook.trim(), post_text.trim(), sections, topic, intention);
+        postIdToUpdate = savedPost.id;
+        console.log('Auto-created draft post with ID:', postIdToUpdate);
+      } catch (dbError: any) {
+        // Log but don't fail - the LinkedIn post was successful
+        console.error('Failed to auto-create draft post:', dbError.message);
+      }
+    }
+
+    // Update the database with LinkedIn metadata
+    if (postIdToUpdate && publishResult.postId) {
       try {
         await updatePostLinkedInMetadata(
-          generated_post_id,
+          postIdToUpdate,
           userId,
           publishResult.postId,
           publishResult.postUrl || ''
@@ -279,10 +296,10 @@ export const publishLinkedInPost = async (req: Request, res: Response): Promise<
         // Log but don't fail - the LinkedIn post was successful
         console.error('Failed to update post metadata in database:', dbError.message);
       }
-    } else if (generated_post_id) {
+    } else if (postIdToUpdate) {
       // Even without LinkedIn post ID, update status to published
       try {
-        await updatePostStatusInDb(generated_post_id, userId, 2);
+        await updatePostStatusInDb(postIdToUpdate, userId, 2);
       } catch (dbError: any) {
         console.error('Failed to update post status:', dbError.message);
       }
@@ -294,6 +311,7 @@ export const publishLinkedInPost = async (req: Request, res: Response): Promise<
       data: {
         linkedin_post_id: publishResult.postId,
         linkedin_post_url: publishResult.postUrl,
+        post_id: postIdToUpdate,
       },
     });
   } catch (error: any) {
