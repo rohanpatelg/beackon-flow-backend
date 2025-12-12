@@ -54,8 +54,6 @@ Return ONLY a JSON array of strings, nothing else. Example format:
     const response = await generateChatCompletion(
       systemPrompt,
       userPrompt,
-      'gpt-4o-mini', // Cost-effective model
-      0.8 // Higher temperature for creativity
     );
 
     // Parse the JSON response
@@ -82,6 +80,218 @@ export interface PostSections {
   shift_takeaway: string;
   cta: string;
 }
+
+// Model for refinement stages (higher quality)
+const REFINEMENT_MODEL = 'gpt-5.1';
+
+/**
+ * 4B - Voice + Originality Layer
+ * Transforms raw AI-generated content into something that sounds authentically human.
+ * This is where the "voice" is built - the single most important part of the writing system.
+ */
+export const refinePostVoice = async (
+  sections: PostSections,
+  hook: string,
+  topic: string
+): Promise<PostSections> => {
+  console.log('Refining post voice...');
+  const systemPrompt = `You are the Voice + Originality editor. Your job is to transform raw AI-generated LinkedIn content into something that sounds authentically human.
+
+This is your creative engine — the agent that FIXES everything large language models struggle with.
+
+Your tasks:
+- Remove clichés and predictable AI fingerprints
+- Eliminate self-help-guru phrasing (no "game-changer", "unlock your potential", etc.)
+- Tighten rhythm and phrasing - make every word earn its place
+- Add metaphor, imagery, sensory language where appropriate
+- Increase human tone and flow - it should feel like a real person wrote it
+- Make wording punchy instead of padded
+
+This is where the "voice" is built. It is the single most important part of the entire writing system.
+
+IMPORTANT: Maintain the SAME structure and approximate length for each section. Do not add or remove sections.
+
+Return ONLY a valid JSON object with the exact same structure:
+{
+  "intro": "refined intro here...",
+  "main_insight": "refined main insight here...",
+  "supporting_detail": "refined supporting detail here...",
+  "shift_takeaway": "refined takeaway here...",
+  "cta": "refined cta here..."
+}`;
+
+  const userPrompt = `Topic: ${topic}
+Hook: ${hook}
+
+Current post sections to refine:
+${JSON.stringify(sections, null, 2)}
+
+Apply voice and originality refinement to make this sound authentically human.`;
+
+  try {
+    const response = await generateChatCompletion(
+      systemPrompt,
+      userPrompt,
+      REFINEMENT_MODEL,
+      0.7
+    );
+
+    const refined = JSON.parse(response);
+
+    if (!refined.intro || !refined.main_insight || !refined.supporting_detail || !refined.shift_takeaway || !refined.cta) {
+      console.warn('Voice refinement returned incomplete sections, using original');
+      return sections;
+    }
+
+    return {
+      intro: refined.intro,
+      main_insight: refined.main_insight,
+      supporting_detail: refined.supporting_detail,
+      shift_takeaway: refined.shift_takeaway,
+      cta: refined.cta,
+    };
+  } catch (error: any) {
+    console.error('Error in voice refinement:', error.message);
+    // Return original sections if refinement fails
+    return sections;
+  }
+};
+
+/**
+ * 4C - Logic + Authority Layer
+ * Merges editorial intelligence with strategic clarity.
+ * Ensures the post is not only original — but actually good.
+ */
+export const refinePostLogic = async (
+  sections: PostSections,
+  hook: string,
+  topic: string
+): Promise<PostSections> => {
+  const systemPrompt = `You are the Logic + Authority editor. Your job is to merge editorial intelligence with strategic clarity.
+
+This agent ensures the post is not only original — but actually good.
+
+Your tasks:
+- Remove contradictions
+- Tighten pacing
+- Fix confusing jumps between ideas
+- Increase skim-ability (this is a LinkedIn must-have)
+- Add concrete examples, micro-stories, or light stats where needed
+- Strengthen clarity and logical progression
+- Ensure the post makes a sharp, readable point
+- Remove repetition and filler
+
+You are the editor and strategist in one.
+
+IMPORTANT: Maintain the SAME structure and approximate length for each section. Do not add or remove sections.
+
+Return ONLY a valid JSON object with the exact same structure:
+{
+  "intro": "polished intro here...",
+  "main_insight": "polished main insight here...",
+  "supporting_detail": "polished supporting detail here...",
+  "shift_takeaway": "polished takeaway here...",
+  "cta": "polished cta here..."
+}`;
+
+  const userPrompt = `Topic: ${topic}
+Hook: ${hook}
+
+Current post sections to polish:
+${JSON.stringify(sections, null, 2)}
+
+Apply logic and authority refinement to make this clear, skimmable, and impactful.`;
+
+  try {
+    const response = await generateChatCompletion(
+      systemPrompt,
+      userPrompt,
+      REFINEMENT_MODEL,
+      0.5
+    );
+
+    const polished = JSON.parse(response);
+
+    if (!polished.intro || !polished.main_insight || !polished.supporting_detail || !polished.shift_takeaway || !polished.cta) {
+      console.warn('Logic refinement returned incomplete sections, using original');
+      return sections;
+    }
+
+    return {
+      intro: polished.intro,
+      main_insight: polished.main_insight,
+      supporting_detail: polished.supporting_detail,
+      shift_takeaway: polished.shift_takeaway,
+      cta: polished.cta,
+    };
+  } catch (error: any) {
+    console.error('Error in logic refinement:', error.message);
+    // Return original sections if refinement fails
+    return sections;
+  }
+};
+
+/**
+ * Refine a single section through both voice and logic layers
+ * Used for section regeneration to maintain consistency
+ */
+const refineSingleSection = async (
+  sectionKey: string,
+  rawContent: string,
+  hook: string,
+  topic: string,
+  currentSections: PostSections
+): Promise<string> => {
+  const systemPrompt = `You are a combined Voice + Logic editor for LinkedIn content. Your job is to refine a single section of a post.
+
+Voice refinement tasks:
+- Remove clichés and AI fingerprints
+- Eliminate self-help-guru phrasing
+- Tighten rhythm and phrasing
+- Add metaphor/imagery where appropriate
+- Make it sound authentically human
+
+Logic refinement tasks:
+- Remove contradictions
+- Fix confusing jumps
+- Increase skim-ability
+- Strengthen clarity
+- Remove repetition and filler
+
+The section must flow naturally with the rest of the post.
+
+CRITICAL: Return ONLY the refined text content for this section. No JSON, no labels, no quotes around it. Just the raw refined text.`;
+
+  const userPrompt = `Topic: ${topic}
+Hook: ${hook}
+
+Full post context:
+- Intro: ${currentSections.intro}
+- Main Insight: ${currentSections.main_insight}
+- Supporting Detail: ${currentSections.supporting_detail}
+- Takeaway: ${currentSections.shift_takeaway}
+- CTA: ${currentSections.cta}
+
+Section to refine: ${sectionKey}
+Raw content: ${rawContent}
+
+Refine this section to sound human, clear, and impactful while maintaining flow with the rest of the post.`;
+
+  try {
+    const response = await generateChatCompletion(
+      systemPrompt,
+      userPrompt,
+      REFINEMENT_MODEL,
+      0.6
+    );
+
+    return response.trim();
+  } catch (error: any) {
+    console.error('Error refining single section:', error.message);
+    // Return original content if refinement fails
+    return rawContent;
+  }
+};
 
 /**
  * Generate LinkedIn post content from a hook using AI
@@ -163,11 +373,11 @@ Topic: ${topic}`;
   }
 
   try {
+    // 4A: Base Generation - Raw draft from skeleton
+    console.log('4A: Generating base post draft...');
     const response = await generateChatCompletion(
       systemPrompt,
-      userPrompt,
-      'gpt-4o-mini',
-      0.7
+      userPrompt
     );
 
     // Parse the JSON response
@@ -177,14 +387,26 @@ Topic: ${topic}`;
       throw new Error('Invalid response format from AI - missing required sections');
     }
 
+    const rawSections: PostSections = {
+      intro: result.intro,
+      main_insight: result.main_insight,
+      supporting_detail: result.supporting_detail,
+      shift_takeaway: result.shift_takeaway,
+      cta: result.cta,
+    };
+
+    // 4B: Voice + Originality Layer - Make it sound human
+    console.log('4B: Applying voice refinement...');
+    const voiceRefined = await refinePostVoice(rawSections, hook, topic);
+
+    // 4C: Logic + Authority Layer - Make it clear and impactful
+    console.log('4C: Applying logic refinement...');
+    const finalSections = await refinePostLogic(voiceRefined, hook, topic);
+
+    console.log('Post generation pipeline complete.');
+
     return {
-      sections: {
-        intro: result.intro,
-        main_insight: result.main_insight,
-        supporting_detail: result.supporting_detail,
-        shift_takeaway: result.shift_takeaway,
-        cta: result.cta,
-      },
+      sections: finalSections,
       design_idea: result.design_idea,
     };
   } catch (error: any) {
@@ -269,14 +491,25 @@ CTA: ${currentSections.cta}
 Please generate a NEW version of the "${sectionKey}" section that is different from the current one but flows well with the other sections.`;
 
   try {
-    const response = await generateChatCompletion(
+    // Generate raw section content
+    console.log(`Regenerating ${sectionKey} section...`);
+    const rawSection = await generateChatCompletion(
       systemPrompt,
-      userPrompt,
-      'gpt-4o-mini',
-      0.9 // Higher temperature for variety
+      userPrompt
     );
 
-    return response.trim();
+    // Apply refinement (combined 4B + 4C for single section)
+    console.log(`Refining ${sectionKey} section...`);
+    const refinedSection = await refineSingleSection(
+      sectionKey,
+      rawSection.trim(),
+      hook,
+      topic,
+      currentSections
+    );
+
+    console.log(`Section regeneration complete.`);
+    return refinedSection;
   } catch (error: any) {
     console.error('Error regenerating section:', error.message);
     throw new Error(`Failed to regenerate section: ${error.message}`);
@@ -326,9 +559,7 @@ Recommend the best framework:`;
   try {
     const response = await generateChatCompletion(
       systemPrompt,
-      userPrompt,
-      'gpt-4o-mini',
-      0.3 // Low temperature for consistent recommendations
+      userPrompt
     );
 
     const intention = response.trim();

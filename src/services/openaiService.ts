@@ -3,6 +3,9 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+const OPEN_AI_MODEL = process.env.OPEN_AI_MODEL || 'gpt-5-2025-08-07';
+const OPENAI_MAX_TOKENS = process.env.OPENAI_MAX_TOKENS || 2000;
+
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -19,14 +22,14 @@ export const isOpenAIConfigured = (): boolean => {
  * Generate chat completion using OpenAI
  * @param systemPrompt - System message to set context
  * @param userPrompt - User message/question
- * @param model - OpenAI model to use (default: gpt-4o-mini)
+ * @param model - OpenAI model to use (default: OPEN_AI_MODEL)
  * @param temperature - Creativity level 0-2 (default: 0.7)
  */
 export const generateChatCompletion = async (
   systemPrompt: string,
   userPrompt: string,
-  model: string = 'gpt-4o-mini',
-  temperature: number = 0.7
+  model: string = OPEN_AI_MODEL,
+  temperature: number = 0.5
 ): Promise<string> => {
   try {
     if (!isOpenAIConfigured()) {
@@ -45,11 +48,11 @@ export const generateChatCompletion = async (
           content: userPrompt,
         },
       ],
-      temperature: temperature,
-      max_tokens: 1000,
+ 
     });
 
     const content = response.choices[0]?.message?.content;
+    console.log(response.choices[0]);
 
     if (!content) {
       throw new Error('No content returned from OpenAI');
