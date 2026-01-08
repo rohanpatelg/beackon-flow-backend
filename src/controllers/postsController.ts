@@ -17,12 +17,12 @@ import {
  */
 export const fetchUserPosts = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.supabaseUser?.id;
+    const deviceId = req.deviceId;
 
-    if (!userId) {
+    if (!deviceId) {
       res.status(401).json({
         success: false,
-        message: 'User not authenticated',
+        message: 'Device not identified',
       });
       return;
     }
@@ -34,7 +34,7 @@ export const fetchUserPosts = async (req: Request, res: Response): Promise<void>
 
     // Fetch posts
     const result = await getUserPosts({
-      userId,
+      deviceId,
       status,
       page,
       pageSize,
@@ -59,13 +59,13 @@ export const fetchUserPosts = async (req: Request, res: Response): Promise<void>
  */
 export const fetchPostById = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.supabaseUser?.id;
+    const deviceId = req.deviceId;
     const postId = parseInt(req.params.id);
 
-    if (!userId) {
+    if (!deviceId) {
       res.status(401).json({
         success: false,
-        message: 'User not authenticated',
+        message: 'Device not identified',
       });
       return;
     }
@@ -78,7 +78,7 @@ export const fetchPostById = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const post = await getPostById(postId, userId);
+    const post = await getPostById(postId, deviceId);
 
     if (!post) {
       res.status(404).json({
@@ -108,14 +108,14 @@ export const fetchPostById = async (req: Request, res: Response): Promise<void> 
  */
 export const updatePost = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.supabaseUser?.id;
+    const deviceId = req.deviceId;
     const postId = parseInt(req.params.id);
     const { content, sections } = req.body;
 
-    if (!userId) {
+    if (!deviceId) {
       res.status(401).json({
         success: false,
-        message: 'User not authenticated',
+        message: 'Device not identified',
       });
       return;
     }
@@ -136,7 +136,7 @@ export const updatePost = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    const updatedPost = await updatePostContent(postId, userId, content.trim(), sections);
+    const updatedPost = await updatePostContent(postId, deviceId, content.trim(), sections);
 
     res.status(200).json({
       success: true,
@@ -157,13 +157,13 @@ export const updatePost = async (req: Request, res: Response): Promise<void> => 
  */
 export const deleteUserPost = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.supabaseUser?.id;
+    const deviceId = req.deviceId;
     const postId = parseInt(req.params.id);
 
-    if (!userId) {
+    if (!deviceId) {
       res.status(401).json({
         success: false,
-        message: 'User not authenticated',
+        message: 'Device not identified',
       });
       return;
     }
@@ -176,7 +176,7 @@ export const deleteUserPost = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    await deletePost(postId, userId);
+    await deletePost(postId, deviceId);
 
     res.status(200).json({
       success: true,
@@ -198,14 +198,14 @@ export const deleteUserPost = async (req: Request, res: Response): Promise<void>
  */
 export const updateUserPostStatus = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.supabaseUser?.id;
+    const deviceId = req.deviceId;
     const postId = parseInt(req.params.id);
     const { status } = req.body;
 
-    if (!userId) {
+    if (!deviceId) {
       res.status(401).json({
         success: false,
-        message: 'User not authenticated',
+        message: 'Device not identified',
       });
       return;
     }
@@ -226,7 +226,7 @@ export const updateUserPostStatus = async (req: Request, res: Response): Promise
       return;
     }
 
-    await updatePostStatus(postId, userId, status);
+    await updatePostStatus(postId, deviceId, status);
 
     res.status(200).json({
       success: true,
@@ -248,13 +248,13 @@ export const updateUserPostStatus = async (req: Request, res: Response): Promise
  */
 export const createUserDraftPost = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.supabaseUser?.id;
+    const deviceId = req.deviceId;
     const { hook, post_content, sections, topic, intention } = req.body;
 
-    if (!userId) {
+    if (!deviceId) {
       res.status(401).json({
         success: false,
-        message: 'User not authenticated',
+        message: 'Device not identified',
       });
       return;
     }
@@ -275,7 +275,7 @@ export const createUserDraftPost = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const savedPost = await createDraftPost(userId, hook.trim(), post_content.trim(), sections, topic, intention);
+    const savedPost = await createDraftPost(deviceId, hook.trim(), post_content.trim(), sections, topic, intention);
 
     res.status(201).json({
       success: true,

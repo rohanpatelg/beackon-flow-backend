@@ -12,7 +12,7 @@ export interface Questions {
 
 export interface UserAnswers {
   id: number;
-  auth_user_id: string;
+  device_id: string;
   questionaire_id: number | null;
   answer_1: string;
   answer_2: string;
@@ -45,16 +45,16 @@ export const fetchQuestionsFromDb = async (): Promise<Questions | null> => {
 /**
  * Check if user has completed onboarding (has answers)
  */
-export const checkUserHasAnswers = async (userId: string): Promise<boolean> => {
+export const checkUserHasAnswers = async (deviceId: string): Promise<boolean> => {
   const query = `
     SELECT EXISTS(
       SELECT 1 FROM public.m_user_answers
-      WHERE auth_user_id = $1
+      WHERE device_id = $1
     ) as has_answers
   `;
 
   try {
-    const result = await pool.query(query, [userId]);
+    const result = await pool.query(query, [deviceId]);
     return result.rows[0]?.has_answers || false;
   } catch (error: any) {
     console.error('Error checking user answers:', error);
@@ -65,15 +65,15 @@ export const checkUserHasAnswers = async (userId: string): Promise<boolean> => {
 /**
  * Fetch user's answers from m_user_answers table
  */
-export const fetchUserAnswersFromDb = async (userId: string): Promise<UserAnswers | null> => {
+export const fetchUserAnswersFromDb = async (deviceId: string): Promise<UserAnswers | null> => {
   const query = `
     SELECT * FROM public.m_user_answers
-    WHERE auth_user_id = $1
+    WHERE device_id = $1
     LIMIT 1
   `;
 
   try {
-    const result = await pool.query(query, [userId]);
+    const result = await pool.query(query, [deviceId]);
     return result.rows[0] || null;
   } catch (error: any) {
     console.error('Error fetching user answers:', error);
@@ -85,7 +85,7 @@ export const fetchUserAnswersFromDb = async (userId: string): Promise<UserAnswer
  * Save new user answers to m_user_answers table
  */
 export const saveUserAnswersToDb = async (
-  userId: string,
+  deviceId: string,
   answers: {
     answer_1: string;
     answer_2: string;
@@ -96,7 +96,7 @@ export const saveUserAnswersToDb = async (
 ): Promise<UserAnswers> => {
   const query = `
     INSERT INTO public.m_user_answers (
-      auth_user_id,
+      device_id,
       questionaire_id,
       answer_1,
       answer_2,
@@ -111,7 +111,7 @@ export const saveUserAnswersToDb = async (
 
   try {
     const result = await pool.query(query, [
-      userId,
+      deviceId,
       questionaireId || null,
       answers.answer_1,
       answers.answer_2,
@@ -129,7 +129,7 @@ export const saveUserAnswersToDb = async (
  * Update existing user answers
  */
 export const updateUserAnswersInDb = async (
-  userId: string,
+  deviceId: string,
   answers: {
     answer_1: string;
     answer_2: string;
@@ -145,13 +145,13 @@ export const updateUserAnswersInDb = async (
       answer_3 = $4,
       answer_4 = $5,
       updated_at = NOW()
-    WHERE auth_user_id = $1
+    WHERE device_id = $1
     RETURNING *
   `;
 
   try {
     const result = await pool.query(query, [
-      userId,
+      deviceId,
       answers.answer_1,
       answers.answer_2,
       answers.answer_3,

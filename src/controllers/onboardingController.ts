@@ -42,17 +42,17 @@ export const getQuestions = async (req: Request, res: Response): Promise<void> =
  */
 export const getOnboardingStatus = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.supabaseUser?.id;
+    const deviceId = req.deviceId;
 
-    if (!userId) {
+    if (!deviceId) {
       res.status(401).json({
         success: false,
-        message: 'User not authenticated',
+        message: 'Device not identified',
       });
       return;
     }
 
-    const hasCompleted = await checkUserHasAnswers(userId);
+    const hasCompleted = await checkUserHasAnswers(deviceId);
 
     res.status(200).json({
       success: true,
@@ -75,17 +75,17 @@ export const getOnboardingStatus = async (req: Request, res: Response): Promise<
  */
 export const getUserAnswers = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.supabaseUser?.id;
+    const deviceId = req.deviceId;
 
-    if (!userId) {
+    if (!deviceId) {
       res.status(401).json({
         success: false,
-        message: 'User not authenticated',
+        message: 'Device not identified',
       });
       return;
     }
 
-    const answers = await fetchUserAnswersFromDb(userId);
+    const answers = await fetchUserAnswersFromDb(deviceId);
 
     res.status(200).json({
       success: true,
@@ -107,12 +107,12 @@ export const getUserAnswers = async (req: Request, res: Response): Promise<void>
  */
 export const saveUserAnswers = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.supabaseUser?.id;
+    const deviceId = req.deviceId;
 
-    if (!userId) {
+    if (!deviceId) {
       res.status(401).json({
         success: false,
-        message: 'User not authenticated',
+        message: 'Device not identified',
       });
       return;
     }
@@ -145,7 +145,7 @@ export const saveUserAnswers = async (req: Request, res: Response): Promise<void
     }
 
     // Check if user already has answers
-    const existingAnswers = await fetchUserAnswersFromDb(userId);
+    const existingAnswers = await fetchUserAnswersFromDb(deviceId);
     if (existingAnswers) {
       res.status(409).json({
         success: false,
@@ -155,7 +155,7 @@ export const saveUserAnswers = async (req: Request, res: Response): Promise<void
     }
 
     const savedAnswers = await saveUserAnswersToDb(
-      userId,
+      deviceId,
       {
         answer_1: answer_1.trim(),
         answer_2: answer_2.trim(),
@@ -185,12 +185,12 @@ export const saveUserAnswers = async (req: Request, res: Response): Promise<void
  */
 export const updateUserAnswers = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.supabaseUser?.id;
+    const deviceId = req.deviceId;
 
-    if (!userId) {
+    if (!deviceId) {
       res.status(401).json({
         success: false,
-        message: 'User not authenticated',
+        message: 'Device not identified',
       });
       return;
     }
@@ -222,7 +222,7 @@ export const updateUserAnswers = async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    const updatedAnswers = await updateUserAnswersInDb(userId, {
+    const updatedAnswers = await updateUserAnswersInDb(deviceId, {
       answer_1: answer_1.trim(),
       answer_2: answer_2.trim(),
       answer_3: answer_3.trim(),

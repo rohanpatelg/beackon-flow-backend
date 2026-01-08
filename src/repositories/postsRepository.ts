@@ -1,7 +1,7 @@
 import { pool } from '@/config/database';
 
 export interface FetchPostsOptions {
-  userId: string;
+  deviceId: string;
   status?: number | 'all';
   page?: number;
   pageSize?: number;
@@ -19,7 +19,7 @@ export interface PostSections {
 
 export interface UserPost {
   id: number;
-  auth_user_id: string;
+  device_id: string;
   hook: string;
   post: string;
   sections?: PostSections;  // Structured sections for editing
@@ -42,8 +42,8 @@ export const fetchUserPostsFromDb = async (options: FetchPostsOptions): Promise<
   total: number;
   hasMore: boolean;
 }> => {
-  const { userId, status = 'all', page = 1, pageSize = 10 } = options;
-  console.log('fetchUserPostsFromDb', userId, status, page, pageSize);
+  const { deviceId, status = 'all', page = 1, pageSize = 10 } = options;
+  console.log('fetchUserPostsFromDb', deviceId, status, page, pageSize);
 
   // Calculate pagination
   const offset = (page - 1) * pageSize;
@@ -52,9 +52,9 @@ export const fetchUserPostsFromDb = async (options: FetchPostsOptions): Promise<
   // Build query
   let query = `
     SELECT * FROM public.m_users_posts
-    WHERE auth_user_id = $1 AND is_deleted = false
+    WHERE device_id = $1 AND is_deleted = false
   `;
-  const params: any[] = [userId];
+  const params: any[] = [deviceId];
 
   // Add status filter if not 'all'
   if (status !== 'all') {
@@ -69,9 +69,9 @@ export const fetchUserPostsFromDb = async (options: FetchPostsOptions): Promise<
   // Get total count
   let countQuery = `
     SELECT COUNT(*) as total FROM public.m_users_posts
-    WHERE auth_user_id = $1 AND is_deleted = false
+    WHERE device_id = $1 AND is_deleted = false
   `;
-  const countParams: any[] = [userId];
+  const countParams: any[] = [deviceId];
 
   if (status !== 'all') {
     countQuery += ` AND status = $${countParams.length + 1}`;
@@ -99,14 +99,14 @@ export const fetchUserPostsFromDb = async (options: FetchPostsOptions): Promise<
 /**
  * Get a single post by ID
  */
-export const getPostByIdFromDb = async (postId: number, userId: string): Promise<UserPost | null> => {
+export const getPostByIdFromDb = async (postId: number, deviceId: string): Promise<UserPost | null> => {
   const query = `
     SELECT * FROM public.m_users_posts
-    WHERE id = $1 AND auth_user_id = $2 AND is_deleted = false
+    WHERE id = $1 AND device_id = $2 AND is_deleted = false
   `;
 
   try {
-    const result = await pool.query(query, [postId, userId]);
+    const result = await pool.query(query, [postId, deviceId]);
     return result.rows[0] || null;
   } catch (error: any) {
     console.error('Error fetching post by ID:', error);
@@ -119,7 +119,7 @@ export const getPostByIdFromDb = async (postId: number, userId: string): Promise
  */
 export const updatePostInDb = async (
   postId: number,
-  userId: string,
+  deviceId: string,
   content: string,
   sections?: PostSections
 ): Promise<UserPost> => {
@@ -128,19 +128,19 @@ export const updatePostInDb = async (
     ? `
       UPDATE public.m_users_posts
       SET post = $1, sections = $2, updated_at = NOW()
-      WHERE id = $3 AND auth_user_id = $4 AND is_deleted = false
+      WHERE id = $3 AND device_id = $4 AND is_deleted = false
       RETURNING *
     `
     : `
       UPDATE public.m_users_posts
       SET post = $1, updated_at = NOW()
-      WHERE id = $2 AND auth_user_id = $3 AND is_deleted = false
+      WHERE id = $2 AND device_id = $3 AND is_deleted = false
       RETURNING *
     `;
 
   const params = sections
-    ? [content, JSON.stringify(sections), postId, userId]
-    : [content, postId, userId];
+    ? [content, JSON.stringify(sections), postId, deviceId]
+    : [content, postId, deviceId];
 
   try {
     const result = await pool.query(query, params);
@@ -159,15 +159,15 @@ export const updatePostInDb = async (
 /**
  * Soft delete a post
  */
-export const softDeletePostInDb = async (postId: number, userId: string): Promise<void> => {
+export const softDeletePostInDb = async (postId: number, deviceId: string): Promise<void> => {
   const query = `
     UPDATE public.m_users_posts
     SET is_deleted = true, updated_at = NOW()
-    WHERE id = $1 AND auth_user_id = $2
+    WHERE id = $1 AND device_id = $2
   `;
 
   try {
-    const result = await pool.query(query, [postId, userId]);
+    const result = await pool.query(query, [postId, deviceId]);
 
     if (result.rowCount === 0) {
       throw new Error('Post not found or you do not have permission to delete it');
@@ -181,15 +181,15 @@ export const softDeletePostInDb = async (postId: number, userId: string): Promis
 /**
  * Update post status
  */
-export const updatePostStatusInDb = async (postId: number, userId: string, status: number): Promise<void> => {
+export const updatePostStatusInDb = async (postId: number, deviceId: string, status: number): Promise<void> => {
   const query = `
     UPDATE public.m_users_posts
     SET status = $1, updated_at = NOW()
-    WHERE id = $2 AND auth_user_id = $3 AND is_deleted = false
+    WHERE id = $2 AND device_id = $3 AND is_deleted = false
   `;
 
   try {
-    const result = await pool.query(query, [status, postId, userId]);
+    const result = await pool.query(query, [status, postId, deviceId]);
 
     if (result.rowCount === 0) {
       throw new Error('Post not found or you do not have permission to update it');
@@ -204,7 +204,7 @@ export const updatePostStatusInDb = async (postId: number, userId: string, statu
  * Insert a new draft post
  */
 export const insertDraftPostInDb = async (
-  userId: string,
+  deviceId: string,
   hook: string,
   postContent: string,
   sections?: PostSections,
@@ -212,14 +212,14 @@ export const insertDraftPostInDb = async (
   intention?: string
 ): Promise<UserPost> => {
   const query = `
-    INSERT INTO public.m_users_posts (auth_user_id, hook, post, sections, topic, intention, status, created_at, updated_at, is_deleted)
+    INSERT INTO public.m_users_posts (device_id, hook, post, sections, topic, intention, status, created_at, updated_at, is_deleted)
     VALUES ($1, $2, $3, $4, $5, $6, 1, NOW(), NOW(), false)
     RETURNING *
   `;
 
   try {
     const result = await pool.query(query, [
-      userId,
+      deviceId,
       hook,
       postContent,
       sections ? JSON.stringify(sections) : null,
@@ -238,7 +238,7 @@ export const insertDraftPostInDb = async (
  */
 export const updatePostLinkedInMetadata = async (
   postId: number,
-  userId: string,
+  deviceId: string,
   linkedinPostId: string,
   linkedinPostUrl: string
 ): Promise<UserPost> => {
@@ -250,12 +250,12 @@ export const updatePostLinkedInMetadata = async (
       status = 2,
       published_at = NOW(),
       updated_at = NOW()
-    WHERE id = $3 AND auth_user_id = $4 AND is_deleted = false
+    WHERE id = $3 AND device_id = $4 AND is_deleted = false
     RETURNING *
   `;
 
   try {
-    const result = await pool.query(query, [linkedinPostId, linkedinPostUrl, postId, userId]);
+    const result = await pool.query(query, [linkedinPostId, linkedinPostUrl, postId, deviceId]);
 
     if (result.rows.length === 0) {
       throw new Error('Post not found or you do not have permission to update it');

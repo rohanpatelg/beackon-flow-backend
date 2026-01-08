@@ -20,8 +20,8 @@ export const generateHooks = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Get user profile from Supabase user (optional)
-    const userProfile = req.supabaseUser?.user_metadata;
+    // User profile is optional - not available with device auth
+    const userProfile = undefined;
 
     // Generate hooks using AI
     const hooks = await generateHooksFromTopic(topic.trim(), userProfile);
@@ -68,8 +68,8 @@ export const generatePost = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Get user profile from Supabase user (optional)
-    const userProfile = req.supabaseUser?.user_metadata;
+    // User profile is optional - not available with device auth
+    const userProfile = undefined;
 
     // Generate post using AI with the selected content framework
     const result = await generatePostFromHook(
@@ -216,7 +216,7 @@ export const regeneratePostSection = async (req: Request, res: Response): Promis
 export const publishLinkedInPost = async (req: Request, res: Response): Promise<void> => {
   try {
     const { post_text, linkedin_token, generated_post_id, hook, sections, topic, intention } = req.body;
-    const userId = req.supabaseUser?.id;
+    const deviceId = req.deviceId;
 
     // Validate required fields
     if (!post_text || typeof post_text !== 'string' || post_text.trim().length === 0) {
@@ -235,10 +235,10 @@ export const publishLinkedInPost = async (req: Request, res: Response): Promise<
       return;
     }
 
-    if (!userId) {
+    if (!deviceId) {
       res.status(401).json({
         success: false,
-        message: 'User not authenticated',
+        message: 'Device not identified',
       });
       return;
     }
@@ -252,7 +252,7 @@ export const publishLinkedInPost = async (req: Request, res: Response): Promise<
       return;
     }
 
-    console.log('Publishing to LinkedIn for user:', userId);
+    console.log('Publishing to LinkedIn for device:', deviceId);
 
     // Publish to LinkedIn
     const publishResult = await publishToLinkedIn(linkedin_token, post_text.trim());
@@ -273,7 +273,7 @@ export const publishLinkedInPost = async (req: Request, res: Response): Promise<
       try {
         // Use hook from request or extract first line as hook
         const postHook = hook || post_text.split('\n')[0] || 'Published post';
-        const savedPost = await insertDraftPostInDb(userId, postHook.trim(), post_text.trim(), sections, topic, intention);
+        const savedPost = await insertDraftPostInDb(deviceId, postHook.trim(), post_text.trim(), sections, topic, intention);
         postIdToUpdate = savedPost.id;
         console.log('Auto-created draft post with ID:', postIdToUpdate);
       } catch (dbError: any) {
@@ -287,7 +287,7 @@ export const publishLinkedInPost = async (req: Request, res: Response): Promise<
       try {
         await updatePostLinkedInMetadata(
           postIdToUpdate,
-          userId,
+          deviceId,
           publishResult.postId,
           publishResult.postUrl || ''
         );
@@ -299,7 +299,7 @@ export const publishLinkedInPost = async (req: Request, res: Response): Promise<
     } else if (postIdToUpdate) {
       // Even without LinkedIn post ID, update status to published
       try {
-        await updatePostStatusInDb(postIdToUpdate, userId, 2);
+        await updatePostStatusInDb(postIdToUpdate, deviceId, 2);
       } catch (dbError: any) {
         console.error('Failed to update post status:', dbError.message);
       }
@@ -325,34 +325,18 @@ export const publishLinkedInPost = async (req: Request, res: Response): Promise<
 
 /**
  * Get LinkedIn connection status
+ * Note: LinkedIn OAuth is disabled, this returns not available status
  * @route GET /api/linkedin/status
  */
 export const getLinkedInStatus = async (req: Request, res: Response): Promise<void> => {
   try {
-    // Check if user has LinkedIn provider in their Supabase metadata
-    const user = req.supabaseUser;
-
-    if (!user) {
-      res.status(401).json({
-        success: false,
-        message: 'Not authenticated',
-      });
-      return;
-    }
-
-    const hasLinkedIn = user.app_metadata?.providers?.includes('linkedin') ||
-      user.user_metadata?.provider === 'linkedin';
-
+    // LinkedIn OAuth is disabled with device auth
     res.status(200).json({
       success: true,
       data: {
-        authenticated: hasLinkedIn,
-        profile: hasLinkedIn ? {
-          linkedin_id: user.user_metadata?.provider_id || user.user_metadata?.sub,
-          name: user.user_metadata?.name || user.user_metadata?.full_name,
-          email: user.email,
-          picture: user.user_metadata?.picture || user.user_metadata?.avatar_url,
-        } : null,
+        authenticated: false,
+        profile: null,
+        message: 'LinkedIn OAuth is currently disabled',
       },
     });
   } catch (error: any) {
@@ -365,14 +349,14 @@ export const getLinkedInStatus = async (req: Request, res: Response): Promise<vo
 };
 
 /**
- * Disconnect LinkedIn (handled client-side with Supabase)
+ * Disconnect LinkedIn (disabled with device auth)
  * @route DELETE /api/linkedin/disconnect
  */
 export const disconnectLinkedIn = async (req: Request, res: Response): Promise<void> => {
   try {
     res.status(200).json({
       success: true,
-      message: 'LinkedIn disconnect is handled client-side via Supabase sign out',
+      message: 'LinkedIn OAuth is currently disabled',
     });
   } catch (error: any) {
     console.error('Error in disconnectLinkedIn controller:', error.message);

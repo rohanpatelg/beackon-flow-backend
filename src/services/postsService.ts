@@ -20,8 +20,8 @@ export const getUserPosts = async (options: FetchPostsOptions) => {
 /**
  * Get a single post by ID
  */
-export const getPostById = async (postId: number, userId: string): Promise<UserPost | null> => {
-  return await getPostByIdFromDb(postId, userId);
+export const getPostById = async (postId: number, deviceId: string): Promise<UserPost | null> => {
+  return await getPostByIdFromDb(postId, deviceId);
 };
 
 /**
@@ -29,18 +29,18 @@ export const getPostById = async (postId: number, userId: string): Promise<UserP
  */
 export const updatePostContent = async (
   postId: number,
-  userId: string,
+  deviceId: string,
   content: string,
   sections?: PostSections
 ): Promise<UserPost> => {
-  return await updatePostInDb(postId, userId, content, sections);
+  return await updatePostInDb(postId, deviceId, content, sections);
 };
 
 /**
  * Soft delete a post
  */
-export const deletePost = async (postId: number, userId: string): Promise<void> => {
-  await softDeletePostInDb(postId, userId);
+export const deletePost = async (postId: number, deviceId: string): Promise<void> => {
+  await softDeletePostInDb(postId, deviceId);
 };
 
 /**
@@ -48,22 +48,22 @@ export const deletePost = async (postId: number, userId: string): Promise<void> 
  */
 export const updatePostStatus = async (
   postId: number,
-  userId: string,
+  deviceId: string,
   status: number
 ): Promise<void> => {
-  await updatePostStatusInDb(postId, userId, status);
+  await updatePostStatusInDb(postId, deviceId, status);
 };
 
 /**
  * Create a new draft post
  */
 export const createDraftPost = async (
-  userId: string,
+  deviceId: string,
   hook: string,
   postContent: string,
   sections?: PostSections,
   topic?: string,
   intention?: string
 ): Promise<UserPost> => {
-  return await insertDraftPostInDb(userId, hook, postContent, sections, topic, intention);
+  return await insertDraftPostInDb(deviceId, hook, postContent, sections, topic, intention);
 };
