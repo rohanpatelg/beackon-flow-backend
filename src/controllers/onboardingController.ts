@@ -119,29 +119,24 @@ export const saveUserAnswers = async (req: Request, res: Response): Promise<void
 
     const { answer_1, answer_2, answer_3, answer_4, questionaire_id } = req.body;
 
-    // Validate required fields
-    if (!answer_1 || typeof answer_1 !== 'string' || answer_1.trim().length === 0) {
-      res.status(400).json({
-        success: false,
-        message: 'Answer 1 is required',
-      });
-      return;
-    }
+    // Fetch questions to validate dynamically based on which questions exist
+    const questions = await fetchQuestionsFromDb();
 
-    if (!answer_2 || typeof answer_2 !== 'string' || answer_2.trim().length === 0) {
-      res.status(400).json({
-        success: false,
-        message: 'Answer 2 is required',
-      });
-      return;
-    }
+    // Build a map of which questions exist and their corresponding answers
+    const questionAnswerPairs = [
+      { question: questions?.question_1, answer: answer_1, num: 1 },
+      { question: questions?.question_2, answer: answer_2, num: 2 },
+    ];
 
-    if (!answer_3 || typeof answer_3 !== 'string' || answer_3.trim().length === 0) {
-      res.status(400).json({
-        success: false,
-        message: 'Answer 3 is required',
-      });
-      return;
+    // Validate only answers for questions that exist
+    for (const { question, answer, num } of questionAnswerPairs) {
+      if (question && (!answer || typeof answer !== 'string' || answer.trim().length === 0)) {
+        res.status(400).json({
+          success: false,
+          message: `Answer ${num} is required`,
+        });
+        return;
+      }
     }
 
     // Check if user already has answers
@@ -157,10 +152,8 @@ export const saveUserAnswers = async (req: Request, res: Response): Promise<void
     const savedAnswers = await saveUserAnswersToDb(
       deviceId,
       {
-        answer_1: answer_1.trim(),
-        answer_2: answer_2.trim(),
-        answer_3: answer_3.trim(),
-        answer_4: answer_4?.trim() || undefined,
+        answer_1: answer_1?.trim() || '',
+        answer_2: answer_2?.trim() || '',
       },
       questionaire_id
     );
@@ -181,7 +174,7 @@ export const saveUserAnswers = async (req: Request, res: Response): Promise<void
 /**
  * Update existing user onboarding answers
  * @route PUT /api/onboarding/answers
- * @body { answer_1: string, answer_2: string, answer_3: string, answer_4?: string }
+ * @body { answer_1: string, answer_2: string }
  */
 export const updateUserAnswers = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -195,38 +188,31 @@ export const updateUserAnswers = async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    const { answer_1, answer_2, answer_3, answer_4 } = req.body;
+    const { answer_1, answer_2 } = req.body;
 
-    // Validate required fields
-    if (!answer_1 || typeof answer_1 !== 'string' || answer_1.trim().length === 0) {
-      res.status(400).json({
-        success: false,
-        message: 'Answer 1 is required',
-      });
-      return;
-    }
+    // Fetch questions to validate dynamically based on which questions exist
+    const questions = await fetchQuestionsFromDb();
 
-    if (!answer_2 || typeof answer_2 !== 'string' || answer_2.trim().length === 0) {
-      res.status(400).json({
-        success: false,
-        message: 'Answer 2 is required',
-      });
-      return;
-    }
+    // Build a map of which questions exist and their corresponding answers
+    const questionAnswerPairs = [
+      { question: questions?.question_1, answer: answer_1, num: 1 },
+      { question: questions?.question_2, answer: answer_2, num: 2 }
+    ];
 
-    if (!answer_3 || typeof answer_3 !== 'string' || answer_3.trim().length === 0) {
-      res.status(400).json({
-        success: false,
-        message: 'Answer 3 is required',
-      });
-      return;
+    // Validate only answers for questions that exist
+    for (const { question, answer, num } of questionAnswerPairs) {
+      if (question && (!answer || typeof answer !== 'string' || answer.trim().length === 0)) {
+        res.status(400).json({
+          success: false,
+          message: `Answer ${num} is required`,
+        });
+        return;
+      }
     }
 
     const updatedAnswers = await updateUserAnswersInDb(deviceId, {
-      answer_1: answer_1.trim(),
-      answer_2: answer_2.trim(),
-      answer_3: answer_3.trim(),
-      answer_4: answer_4?.trim() || undefined,
+      answer_1: answer_1?.trim() || '',
+      answer_2: answer_2?.trim() || ''
     });
 
     res.status(200).json({

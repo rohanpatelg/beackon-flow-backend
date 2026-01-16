@@ -4,8 +4,6 @@ export interface Questions {
   id: number;
   question_1: string | null;
   question_2: string | null;
-  question_3: string | null;
-  question_4: string | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -16,8 +14,6 @@ export interface UserAnswers {
   questionaire_id: number | null;
   answer_1: string;
   answer_2: string;
-  answer_3: string;
-  answer_4: string | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -89,8 +85,6 @@ export const saveUserAnswersToDb = async (
   answers: {
     answer_1: string;
     answer_2: string;
-    answer_3: string;
-    answer_4?: string;
   },
   questionaireId?: number
 ): Promise<UserAnswers> => {
@@ -100,12 +94,10 @@ export const saveUserAnswersToDb = async (
       questionaire_id,
       answer_1,
       answer_2,
-      answer_3,
-      answer_4,
       created_at,
       updated_at
     )
-    VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+    VALUES ($1, $2, $3, $4, NOW(), NOW())
     RETURNING *
   `;
 
@@ -115,8 +107,6 @@ export const saveUserAnswersToDb = async (
       questionaireId || null,
       answers.answer_1,
       answers.answer_2,
-      answers.answer_3,
-      answers.answer_4 || null,
     ]);
     return result.rows[0];
   } catch (error: any) {
@@ -133,8 +123,6 @@ export const updateUserAnswersInDb = async (
   answers: {
     answer_1: string;
     answer_2: string;
-    answer_3: string;
-    answer_4?: string;
   }
 ): Promise<UserAnswers> => {
   const query = `
@@ -142,8 +130,6 @@ export const updateUserAnswersInDb = async (
     SET
       answer_1 = $2,
       answer_2 = $3,
-      answer_3 = $4,
-      answer_4 = $5,
       updated_at = NOW()
     WHERE device_id = $1
     RETURNING *
@@ -154,8 +140,6 @@ export const updateUserAnswersInDb = async (
       deviceId,
       answers.answer_1,
       answers.answer_2,
-      answers.answer_3,
-      answers.answer_4 || null,
     ]);
 
     if (result.rows.length === 0) {
