@@ -213,7 +213,7 @@ export const updateUserAnswers = async (req: Request, res: Response): Promise<vo
     const updatedAnswers = await updateUserAnswersInDb(deviceId, {
       answer_1: answer_1?.trim() || '',
       answer_2: answer_2?.trim() || ''
-    });
+    }, questions?.id);
 
     res.status(200).json({
       success: true,

@@ -116,16 +116,17 @@ export const saveUserAnswersToDb = async (
 };
 
 /**
- * Update existing user answers
+ * Upsert user answers — update if exists, insert if not
  */
 export const updateUserAnswersInDb = async (
   deviceId: string,
   answers: {
     answer_1: string;
     answer_2: string;
-  }
+  },
+  questionaireId?: number
 ): Promise<UserAnswers> => {
-  const query = `
+  const updateQuery = `
     UPDATE public.m_user_answers
     SET
       answer_1 = $2,
@@ -135,20 +136,41 @@ export const updateUserAnswersInDb = async (
     RETURNING *
   `;
 
+  const insertQuery = `
+    INSERT INTO public.m_user_answers (
+      device_id,
+      questionaire_id,
+      answer_1,
+      answer_2,
+      created_at,
+      updated_at
+    )
+    VALUES ($1, $2, $3, $4, NOW(), NOW())
+    RETURNING *
+  `;
+
   try {
-    const result = await pool.query(query, [
+    // Try update first
+    const updateResult = await pool.query(updateQuery, [
       deviceId,
       answers.answer_1,
       answers.answer_2,
     ]);
 
-    if (result.rows.length === 0) {
-      throw new Error('No existing answers found to update');
+    if (updateResult.rows.length > 0) {
+      return updateResult.rows[0];
     }
 
-    return result.rows[0];
+    // No existing row — insert instead
+    const insertResult = await pool.query(insertQuery, [
+      deviceId,
+      questionaireId || null,
+      answers.answer_1,
+      answers.answer_2,
+    ]);
+    return insertResult.rows[0];
   } catch (error: any) {
-    console.error('Error updating user answers:', error);
-    throw new Error(`Failed to update user answers: ${error.message}`);
+    console.error('Error upserting user answers:', error);
+    throw new Error(`Failed to save user answers: ${error.message}`);
   }
 };
