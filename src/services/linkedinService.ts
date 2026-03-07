@@ -580,6 +580,73 @@ Recommend the best framework:`;
 };
 
 /**
+ * Topic suggestion structure
+ */
+export interface TopicSuggestion {
+  topic: string;
+  angle: string;
+}
+
+/**
+ * Generate topic suggestions based on user's past topics
+ * @param pastTopics - Array of the user's recent post topics
+ * @param count - Number of suggestions to generate (default: 5)
+ * @returns Topic suggestions with angles
+ */
+export const generateTopicSuggestions = async (
+  pastTopics: string[],
+  count: number = 5
+): Promise<TopicSuggestion[]> => {
+  const systemPrompt = `You are an expert LinkedIn content strategist. Your task is to suggest ${count} new LinkedIn post topics for a creator based on their recent content history.
+
+Guidelines:
+- Analyze the themes, patterns, and expertise areas from their past topics
+- Suggest topics that explore ADJACENT ideas, deeper dives, or fresh angles — NOT repeats
+- Each topic should be specific enough to write about immediately (not vague)
+- Each topic should be phrased as a natural description of what the post would cover
+- Topics should be diverse in approach (mix of stories, insights, contrarian takes, how-tos)
+- Keep topics relevant to a professional LinkedIn audience
+- Each topic should be 1-2 sentences max
+
+Return ONLY a JSON array with this format:
+[
+  { "topic": "The specific topic idea here", "angle": "Brief one-line description of the unique angle" }
+]`;
+
+  const userPrompt = `Here are my last ${pastTopics.length} LinkedIn post topics:
+
+${pastTopics.map((t, i) => `${i + 1}. ${t}`).join('\n')}
+
+Based on these themes and my content patterns, suggest ${count} fresh topic ideas I should write about next.`;
+
+  try {
+    const response = await generateChatCompletion(
+      systemPrompt,
+      userPrompt,
+      undefined,
+      0.8
+    );
+
+    const suggestions = JSON.parse(response);
+
+    if (!Array.isArray(suggestions) || suggestions.length === 0) {
+      throw new Error('Invalid response format from AI');
+    }
+
+    return suggestions
+      .filter((s: any) => s.topic && typeof s.topic === 'string')
+      .map((s: any) => ({
+        topic: s.topic.trim(),
+        angle: (s.angle || '').trim(),
+      }))
+      .slice(0, count);
+  } catch (error: any) {
+    console.error('Error generating topic suggestions:', error.message);
+    throw new Error(`Failed to generate topic suggestions: ${error.message}`);
+  }
+};
+
+/**
  * Get the LinkedIn user's URN (person ID) using the userinfo endpoint
  * This is needed to create posts as the authenticated user
  */

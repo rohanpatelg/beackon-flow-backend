@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { generateHooksFromTopic, generatePostFromHook, recommendIntention, publishToLinkedIn, regenerateSection as regenerateSectionService, SectionKey, PostSections } from '@/services/linkedinService';
-import { updatePostLinkedInMetadata, updatePostStatusInDb, insertDraftPostInDb } from '@/repositories/postsRepository';
+import { generateHooksFromTopic, generatePostFromHook, recommendIntention, publishToLinkedIn, regenerateSection as regenerateSectionService, SectionKey, PostSections, generateTopicSuggestions } from '@/services/linkedinService';
+import { updatePostLinkedInMetadata, updatePostStatusInDb, insertDraftPostInDb, fetchRecentTopicsFromDb, getTotalPostCountFromDb } from '@/repositories/postsRepository';
 
 /**
  * Generate hooks from a topic
@@ -368,21 +368,61 @@ export const disconnectLinkedIn = async (req: Request, res: Response): Promise<v
 };
 
 /**
- * Get suggestion (placeholder)
+ * Get AI-powered topic suggestions based on user's past posts
  * @route POST /api/linkedin/get-suggestion
  */
 export const getSuggestion = async (req: Request, res: Response): Promise<void> => {
   try {
-    // TODO: Implement suggestion logic
-    res.status(501).json({
-      success: false,
-      message: 'Get suggestion is not yet implemented',
+    const deviceId = req.deviceId;
+    const minPosts = parseInt(process.env.INSPIRATION_MIN_POSTS || '5', 10);
+    const suggestionCount = parseInt(process.env.INSPIRATION_SUGGESTION_COUNT || '5', 10);
+
+    if (!deviceId) {
+      res.status(401).json({
+        success: false,
+        message: 'Device not identified',
+      });
+      return;
+    }
+
+    // Check if user has enough posts
+    const totalCount = await getTotalPostCountFromDb(deviceId);
+    if (totalCount < minPosts) {
+      res.status(400).json({
+        success: false,
+        message: `You need at least ${minPosts} posts to get suggestions. You currently have ${totalCount}.`,
+        min_posts: minPosts,
+      });
+      return;
+    }
+
+    // Fetch last 10 topics
+    const recentTopics = await fetchRecentTopicsFromDb(deviceId, 10);
+
+    if (recentTopics.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: 'No topics found in your post history. Create some posts with topics first.',
+      });
+      return;
+    }
+
+    // Generate suggestions using LLM
+    const suggestions = await generateTopicSuggestions(recentTopics, suggestionCount);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        suggestions,
+        based_on_count: recentTopics.length,
+        min_posts: minPosts,
+      },
     });
   } catch (error: any) {
     console.error('Error in getSuggestion controller:', error.message);
     res.status(500).json({
       success: false,
-      message: error.message || 'Failed to get suggestion',
+      message: error.message || 'Failed to generate suggestions',
     });
   }
 };

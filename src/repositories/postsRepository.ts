@@ -234,6 +234,51 @@ export const insertDraftPostInDb = async (
 };
 
 /**
+ * Fetch the last N post topics for a device
+ * Returns only non-null, non-empty topics from non-deleted posts
+ */
+export const fetchRecentTopicsFromDb = async (
+  deviceId: string,
+  limit: number = 10
+): Promise<string[]> => {
+  const query = `
+    SELECT topic FROM public.m_users_posts
+    WHERE device_id = $1
+      AND is_deleted = false
+      AND topic IS NOT NULL
+      AND topic != ''
+    ORDER BY created_at DESC
+    LIMIT $2
+  `;
+
+  try {
+    const result = await pool.query(query, [deviceId, limit]);
+    return result.rows.map((row: any) => row.topic);
+  } catch (error: any) {
+    console.error('Error fetching recent topics:', error);
+    throw new Error(`Failed to fetch recent topics: ${error.message}`);
+  }
+};
+
+/**
+ * Get total non-deleted post count for a device
+ */
+export const getTotalPostCountFromDb = async (deviceId: string): Promise<number> => {
+  const query = `
+    SELECT COUNT(*) as total FROM public.m_users_posts
+    WHERE device_id = $1 AND is_deleted = false
+  `;
+
+  try {
+    const result = await pool.query(query, [deviceId]);
+    return parseInt(result.rows[0]?.total || '0', 10);
+  } catch (error: any) {
+    console.error('Error fetching total post count:', error);
+    throw new Error(`Failed to fetch total post count: ${error.message}`);
+  }
+};
+
+/**
  * Update post with LinkedIn metadata after successful publish
  */
 export const updatePostLinkedInMetadata = async (
