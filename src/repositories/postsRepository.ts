@@ -34,6 +34,10 @@ export interface UserPost {
   published_at?: string;
 }
 
+export interface UserPostSummary extends UserPost {
+  device_id: string;
+}
+
 /**
  * Fetch user's posts from m_users_posts table
  */
@@ -93,6 +97,23 @@ export const fetchUserPostsFromDb = async (options: FetchPostsOptions): Promise<
   } catch (error: any) {
     console.error('Error fetching posts:', error);
     throw new Error(`Failed to fetch posts: ${error.message}`);
+  }
+};
+
+export const fetchAllUserPostsByDeviceFromDb = async (deviceId: string): Promise<UserPostSummary[]> => {
+  const query = `
+    SELECT *
+    FROM public.m_users_posts
+    WHERE device_id = $1 AND is_deleted = false
+    ORDER BY created_at DESC
+  `;
+
+  try {
+    const result = await pool.query(query, [deviceId]);
+    return result.rows as UserPostSummary[];
+  } catch (error: any) {
+    console.error('Error fetching all posts by device:', error);
+    throw new Error(`Failed to fetch posts for cognition: ${error.message}`);
   }
 };
 
@@ -181,19 +202,24 @@ export const softDeletePostInDb = async (postId: number, deviceId: string): Prom
 /**
  * Update post status
  */
-export const updatePostStatusInDb = async (postId: number, deviceId: string, status: number): Promise<void> => {
+export const updatePostStatusInDb = async (postId: number, deviceId: string, status: number): Promise<UserPost> => {
   const query = `
     UPDATE public.m_users_posts
-    SET status = $1, updated_at = NOW()
+    SET
+      status = $1,
+      published_at = CASE WHEN $1 = 2 THEN NOW() ELSE NULL END,
+      updated_at = NOW()
     WHERE id = $2 AND device_id = $3 AND is_deleted = false
+    RETURNING *
   `;
 
   try {
     const result = await pool.query(query, [status, postId, deviceId]);
 
-    if (result.rowCount === 0) {
+    if (result.rows.length === 0) {
       throw new Error('Post not found or you do not have permission to update it');
     }
+    return result.rows[0] as UserPost;
   } catch (error: any) {
     console.error('Error updating post status:', error);
     throw new Error(`Failed to update post status: ${error.message}`);

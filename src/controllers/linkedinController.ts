@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { generateHooksFromTopic, generatePostFromHook, recommendIntention, publishToLinkedIn, regenerateSection as regenerateSectionService, SectionKey, PostSections, generateTopicSuggestions } from '@/services/linkedinService';
 import { updatePostLinkedInMetadata, updatePostStatusInDb, insertDraftPostInDb, fetchRecentTopicsFromDb, getTotalPostCountFromDb } from '@/repositories/postsRepository';
+import { buildHookMemoryPrompt, buildPostMemoryPrompt, buildSuggestionMemoryPrompt } from '@/services/memoryPromptService';
+import { getGenerationContextForDevice, recomputeStyleProfileForDevice, syncPostMemoryForPost } from '@/services/cognitiveMemoryService';
 
 /**
  * Generate hooks from a topic
@@ -10,6 +12,7 @@ export const generateHooks = async (req: Request, res: Response): Promise<void> 
   console.log('generateHooks controller', req.body);
   try {
     const { topic } = req.body;
+    const deviceId = req.deviceId;
 
     // Validate input
     if (!topic || typeof topic !== 'string' || topic.trim().length === 0) {
@@ -20,11 +23,14 @@ export const generateHooks = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // User profile is optional - not available with device auth
     const userProfile = undefined;
+    const generationContext = deviceId
+      ? await getGenerationContextForDevice(deviceId, topic.trim())
+      : null;
+    const memoryPrompt = generationContext ? buildHookMemoryPrompt(generationContext) : '';
 
     // Generate hooks using AI
-    const hooks = await generateHooksFromTopic(topic.trim(), userProfile);
+    const hooks = await generateHooksFromTopic(topic.trim(), userProfile, memoryPrompt);
 
     res.status(200).json({
       success: true,
@@ -50,6 +56,7 @@ export const generateHooks = async (req: Request, res: Response): Promise<void> 
 export const generatePost = async (req: Request, res: Response): Promise<void> => {
   try {
     const { hook, topic, intention } = req.body;
+    const deviceId = req.deviceId;
 
     // Validate input
     if (!hook || typeof hook !== 'string' || hook.trim().length === 0) {
@@ -68,15 +75,19 @@ export const generatePost = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // User profile is optional - not available with device auth
     const userProfile = undefined;
+    const generationContext = deviceId
+      ? await getGenerationContextForDevice(deviceId, `${topic.trim()}\n${hook.trim()}`)
+      : null;
+    const memoryPrompt = generationContext ? buildPostMemoryPrompt(generationContext) : '';
 
     // Generate post using AI with the selected content framework
     const result = await generatePostFromHook(
       hook.trim(),
       topic.trim(),
       intention?.trim(),
-      userProfile
+      userProfile,
+      memoryPrompt
     );
 
     res.status(200).json({
@@ -283,9 +294,11 @@ export const publishLinkedInPost = async (req: Request, res: Response): Promise<
     }
 
     // Update the database with LinkedIn metadata
+    let syncedPost: any = null;
+
     if (postIdToUpdate && publishResult.postId) {
       try {
-        await updatePostLinkedInMetadata(
+        syncedPost = await updatePostLinkedInMetadata(
           postIdToUpdate,
           deviceId,
           publishResult.postId,
@@ -299,9 +312,18 @@ export const publishLinkedInPost = async (req: Request, res: Response): Promise<
     } else if (postIdToUpdate) {
       // Even without LinkedIn post ID, update status to published
       try {
-        await updatePostStatusInDb(postIdToUpdate, deviceId, 2);
+        syncedPost = await updatePostStatusInDb(postIdToUpdate, deviceId, 2);
       } catch (dbError: any) {
         console.error('Failed to update post status:', dbError.message);
+      }
+    }
+
+    if (syncedPost) {
+      try {
+        await syncPostMemoryForPost(syncedPost);
+        await recomputeStyleProfileForDevice(deviceId);
+      } catch (syncError: any) {
+        console.error('Non-fatal cognition sync error after LinkedIn publish:', syncError.message);
       }
     }
 
@@ -407,8 +429,12 @@ export const getSuggestion = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    const suggestionQuery = recentTopics.join('\n');
+    const generationContext = await getGenerationContextForDevice(deviceId, suggestionQuery);
+    const memoryPrompt = buildSuggestionMemoryPrompt(generationContext);
+
     // Generate suggestions using LLM
-    const suggestions = await generateTopicSuggestions(recentTopics, suggestionCount);
+    const suggestions = await generateTopicSuggestions(recentTopics, suggestionCount, memoryPrompt);
 
     res.status(200).json({
       success: true,
@@ -416,6 +442,14 @@ export const getSuggestion = async (req: Request, res: Response): Promise<void> 
         suggestions,
         based_on_count: recentTopics.length,
         min_posts: minPosts,
+        similar_posts: generationContext.memories.map((memory) => ({
+          post_id: memory.postId,
+          topic: memory.topic,
+          match_reason: memory.matchReason,
+          similarity_band: memory.similarityBand,
+        })),
+        style_applied: generationContext.styleApplied,
+        preference_applied: generationContext.preferenceApplied,
       },
     });
   } catch (error: any) {

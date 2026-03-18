@@ -7,6 +7,7 @@ import {
   updatePostStatus,
   createDraftPost,
 } from '@/services/postsService';
+import { recomputeStyleProfileForDevice, syncPostMemoryForPost } from '@/services/cognitiveMemoryService';
 
 /**
  * Get user's posts with filtering and pagination
@@ -137,6 +138,12 @@ export const updatePost = async (req: Request, res: Response): Promise<void> => 
     }
 
     const updatedPost = await updatePostContent(postId, deviceId, content.trim(), sections);
+    try {
+      await syncPostMemoryForPost(updatedPost as any);
+      await recomputeStyleProfileForDevice(deviceId);
+    } catch (syncError: any) {
+      console.error('Non-fatal cognition sync error after post update:', syncError.message);
+    }
 
     res.status(200).json({
       success: true,
@@ -226,11 +233,18 @@ export const updateUserPostStatus = async (req: Request, res: Response): Promise
       return;
     }
 
-    await updatePostStatus(postId, deviceId, status);
+    const updatedPost = await updatePostStatus(postId, deviceId, status);
+    try {
+      await syncPostMemoryForPost(updatedPost as any);
+      await recomputeStyleProfileForDevice(deviceId);
+    } catch (syncError: any) {
+      console.error('Non-fatal cognition sync error after status update:', syncError.message);
+    }
 
     res.status(200).json({
       success: true,
       message: 'Post status updated successfully',
+      data: updatedPost,
     });
   } catch (error: any) {
     console.error('Error in updateUserPostStatus controller:', error.message);
@@ -276,6 +290,12 @@ export const createUserDraftPost = async (req: Request, res: Response): Promise<
     }
 
     const savedPost = await createDraftPost(deviceId, hook.trim(), post_content.trim(), sections, topic, intention);
+    try {
+      await syncPostMemoryForPost(savedPost as any);
+      await recomputeStyleProfileForDevice(deviceId);
+    } catch (syncError: any) {
+      console.error('Non-fatal cognition sync error after draft create:', syncError.message);
+    }
 
     res.status(201).json({
       success: true,

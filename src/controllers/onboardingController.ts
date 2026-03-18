@@ -6,6 +6,7 @@ import {
   saveUserAnswersToDb,
   updateUserAnswersInDb,
 } from '@/repositories/onboardingRepository';
+import { recomputeStyleProfileForDevice } from '@/services/cognitiveMemoryService';
 
 /**
  * Get onboarding questions
@@ -158,6 +159,12 @@ export const saveUserAnswers = async (req: Request, res: Response): Promise<void
       questionaire_id
     );
 
+    try {
+      await recomputeStyleProfileForDevice(deviceId);
+    } catch (syncError: any) {
+      console.error('Non-fatal cognition sync error after onboarding save:', syncError.message);
+    }
+
     res.status(201).json({
       success: true,
       data: savedAnswers,
@@ -214,6 +221,12 @@ export const updateUserAnswers = async (req: Request, res: Response): Promise<vo
       answer_1: answer_1?.trim() || '',
       answer_2: answer_2?.trim() || ''
     }, questions?.id);
+
+    try {
+      await recomputeStyleProfileForDevice(deviceId);
+    } catch (syncError: any) {
+      console.error('Non-fatal cognition sync error after onboarding update:', syncError.message);
+    }
 
     res.status(200).json({
       success: true,

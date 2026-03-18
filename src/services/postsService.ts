@@ -1,5 +1,6 @@
 import {
   fetchUserPostsFromDb,
+  fetchAllUserPostsByDeviceFromDb,
   getPostByIdFromDb,
   updatePostInDb,
   softDeletePostInDb,
@@ -50,8 +51,8 @@ export const updatePostStatus = async (
   postId: number,
   deviceId: string,
   status: number
-): Promise<void> => {
-  await updatePostStatusInDb(postId, deviceId, status);
+): Promise<UserPost> => {
+  return await updatePostStatusInDb(postId, deviceId, status);
 };
 
 /**
@@ -66,4 +67,8 @@ export const createDraftPost = async (
   intention?: string
 ): Promise<UserPost> => {
   return await insertDraftPostInDb(deviceId, hook, postContent, sections, topic, intention);
+};
+
+export const getAllPostsByDevice = async (deviceId: string): Promise<UserPost[]> => {
+  return await fetchAllUserPostsByDeviceFromDb(deviceId);
 };

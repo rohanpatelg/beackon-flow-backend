@@ -27,7 +27,8 @@ interface LinkedInPublishResult {
  */
 export const generateHooksFromTopic = async (
   topic: string,
-  userProfile?: any
+  userProfile?: any,
+  memoryPrompt?: string
 ): Promise<string[]> => {
   const systemPrompt = `You are an expert LinkedIn content creator specializing in creating engaging hooks that capture attention.
 
@@ -44,6 +45,13 @@ Return ONLY a JSON array of strings, nothing else. Example format:
 ["Hook 1 text here", "Hook 2 text here", "Hook 3 text here"]`;
 
   let userPrompt = `Topic: ${topic}`;
+
+  if (memoryPrompt) {
+    userPrompt += `\n\nFounder writing memory:
+${memoryPrompt}
+
+Use this memory to align with the founder's preferences and voice. Do not copy prior posts verbatim.`;
+  }
 
   // Add user profile context if available for personalization
   if (userProfile) {
@@ -305,7 +313,8 @@ export const generatePostFromHook = async (
   hook: string,
   topic: string,
   intention?: string,
-  userProfile?: any
+  userProfile?: any,
+  memoryPrompt?: string
 ): Promise<{ sections: PostSections; design_idea: string }> => {
   // Framework-specific instructions
   const frameworkInstructions: { [key: string]: string } = {
@@ -365,6 +374,11 @@ Topic: ${topic}`;
 
   if (intention) {
     userPrompt += `\n\nContent Framework: ${intention}`;
+  }
+
+  if (memoryPrompt) {
+    userPrompt += `\n\nFounder writing memory:
+${memoryPrompt}`;
   }
 
   // Add user profile context if available
@@ -595,7 +609,8 @@ export interface TopicSuggestion {
  */
 export const generateTopicSuggestions = async (
   pastTopics: string[],
-  count: number = 5
+  count: number = 5,
+  memoryPrompt?: string
 ): Promise<TopicSuggestion[]> => {
   const systemPrompt = `You are an expert LinkedIn content strategist. Your task is to suggest ${count} new LinkedIn post topics for a creator based on their recent content history.
 
@@ -616,6 +631,8 @@ Return ONLY a JSON array with this format:
   const userPrompt = `Here are my last ${pastTopics.length} LinkedIn post topics:
 
 ${pastTopics.map((t, i) => `${i + 1}. ${t}`).join('\n')}
+
+${memoryPrompt ? `\nFounder writing memory:\n${memoryPrompt}\n` : ''}
 
 Based on these themes and my content patterns, suggest ${count} fresh topic ideas I should write about next.`;
 

@@ -5,6 +5,7 @@ dotenv.config();
 
 const OPEN_AI_MODEL = process.env.OPEN_AI_MODEL || 'gpt-5-2025-08-07';
 const OPENAI_MAX_TOKENS = process.env.OPENAI_MAX_TOKENS || 2000;
+const OPENAI_EMBEDDING_MODEL = process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -62,6 +63,29 @@ export const generateChatCompletion = async (
   } catch (error: any) {
     console.error('OpenAI API error:', error.message);
     throw new Error(`OpenAI completion failed: ${error.message}`);
+  }
+};
+
+export const generateEmbedding = async (input: string): Promise<number[]> => {
+  try {
+    if (!isOpenAIConfigured()) {
+      throw new Error('OpenAI API key not configured');
+    }
+
+    const response = await openai.embeddings.create({
+      model: OPENAI_EMBEDDING_MODEL,
+      input,
+    });
+
+    const embedding = response.data[0]?.embedding;
+    if (!embedding || embedding.length === 0) {
+      throw new Error('No embedding returned from OpenAI');
+    }
+
+    return embedding;
+  } catch (error: any) {
+    console.error('OpenAI embedding error:', error.message);
+    throw new Error(`OpenAI embedding failed: ${error.message}`);
   }
 };
 
