@@ -3,6 +3,7 @@ import { generateHooksFromTopic, generatePostFromHook, recommendIntention, publi
 import { updatePostLinkedInMetadata, updatePostStatusInDb, insertDraftPostInDb, fetchRecentTopicsFromDb, getTotalPostCountFromDb } from '@/repositories/postsRepository';
 import { buildSuggestionMemoryPrompt } from '@/services/memoryPromptService';
 import { getGenerationContextForDevice, recomputeStyleProfileForDevice, syncPostMemoryForPost } from '@/services/cognitiveMemoryService';
+import { searchWebForTopic } from '@/services/webSearchService';
 
 /**
  * Generate hooks from a topic
@@ -11,7 +12,7 @@ import { getGenerationContextForDevice, recomputeStyleProfileForDevice, syncPost
 export const generateHooks = async (req: Request, res: Response): Promise<void> => {
   console.log('generateHooks controller', req.body);
   try {
-    const { topic } = req.body;
+    const { topic, useWebContext } = req.body;
     const deviceId = req.deviceId;
 
     // Validate input
@@ -23,8 +24,18 @@ export const generateHooks = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Generate hooks using AI (no memory context — kept fresh)
-    const hooks = await generateHooksFromTopic(topic.trim());
+    // Optionally enrich with web search
+    let webContext = null;
+    if (useWebContext) {
+      try {
+        webContext = await searchWebForTopic(topic.trim());
+      } catch (err: any) {
+        console.warn('Web search failed (non-fatal):', err.message);
+      }
+    }
+
+    // Generate hooks using AI
+    const hooks = await generateHooksFromTopic(topic.trim(), webContext);
 
     res.status(200).json({
       success: true,
@@ -49,7 +60,7 @@ export const generateHooks = async (req: Request, res: Response): Promise<void> 
  */
 export const generatePost = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { hook, topic, intention } = req.body;
+    const { hook, topic, intention, useWebContext } = req.body;
     const deviceId = req.deviceId;
 
     // Validate input
@@ -69,11 +80,22 @@ export const generatePost = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Generate post using AI (no memory context — kept fresh)
+    // Optionally enrich with web search
+    let webContext = null;
+    if (useWebContext) {
+      try {
+        webContext = await searchWebForTopic(topic.trim());
+      } catch (err: any) {
+        console.warn('Web search failed (non-fatal):', err.message);
+      }
+    }
+
+    // Generate post using AI
     const result = await generatePostFromHook(
       hook.trim(),
       topic.trim(),
-      intention?.trim()
+      intention?.trim(),
+      webContext
     );
 
     res.status(200).json({
@@ -82,6 +104,7 @@ export const generatePost = async (req: Request, res: Response): Promise<void> =
         sections: result.sections,
         design_idea: result.design_idea,
         hook: hook.trim(),
+        suggested_images: webContext?.images || [],
       },
     });
   } catch (error: any) {

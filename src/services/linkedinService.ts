@@ -1,5 +1,6 @@
 import { generateChatCompletion } from './openaiService';
 import axios from 'axios';
+import { WebSearchContext } from '@/types';
 
 // LinkedIn API base URL
 const LINKEDIN_API_BASE = 'https://api.linkedin.com';
@@ -27,8 +28,7 @@ interface LinkedInPublishResult {
  */
 export const generateHooksFromTopic = async (
   topic: string,
-  userProfile?: any,
-  memoryPrompt?: string
+  webContext?: WebSearchContext | null
 ): Promise<string[]> => {
   const systemPrompt = `You are an expert LinkedIn content creator specializing in creating engaging hooks that capture attention.
 
@@ -46,14 +46,12 @@ Return ONLY a JSON array of strings, nothing else. Example format:
 
   let userPrompt = `Topic: ${topic}`;
 
-  if (memoryPrompt) {
-    userPrompt += `\n\nFounder context (reference only):
-${memoryPrompt}`;
-  }
+  if (webContext) {
+    userPrompt += `\n\nCurrent market context (use for relevance and timeliness — do NOT copy verbatim):
+${webContext.summary}
 
-  // Add user profile context if available for personalization
-  if (userProfile) {
-    userPrompt += `\n\nUser Context: ${JSON.stringify(userProfile)}`;
+Sources:
+${webContext.results.map(r => `- ${r.title}: ${r.snippet}`).join('\n')}`;
   }
 
   try {
@@ -311,8 +309,7 @@ export const generatePostFromHook = async (
   hook: string,
   topic: string,
   intention?: string,
-  userProfile?: any,
-  memoryPrompt?: string
+  webContext?: WebSearchContext | null
 ): Promise<{ sections: PostSections; design_idea: string }> => {
   // Framework-specific instructions
   const frameworkInstructions: { [key: string]: string } = {
@@ -374,14 +371,12 @@ Topic: ${topic}`;
     userPrompt += `\n\nContent Framework: ${intention}`;
   }
 
-  if (memoryPrompt) {
-    userPrompt += `\n\nFounder context (reference only):
-${memoryPrompt}`;
-  }
+  if (webContext) {
+    userPrompt += `\n\nCurrent market context (use for relevance and timeliness — do NOT copy verbatim):
+${webContext.summary}
 
-  // Add user profile context if available
-  if (userProfile) {
-    userPrompt += `\n\nUser Context: ${JSON.stringify(userProfile)}`;
+Sources:
+${webContext.results.map(r => `- ${r.title}: ${r.snippet}`).join('\n')}`;
   }
 
   try {

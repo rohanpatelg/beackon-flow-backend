@@ -56,3 +56,16 @@ export interface GenerationContext {
   preferenceApplied: boolean;
 }
 
+export interface WebSearchResult {
+  title: string;
+  snippet: string;
+  url: string;
+}
+
+export interface WebSearchContext {
+  query: string;
+  summary: string;
+  results: WebSearchResult[];
+  images: string[];
+}
+
