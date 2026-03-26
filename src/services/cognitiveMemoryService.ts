@@ -5,7 +5,8 @@ import { generateEmbedding } from '@/services/openaiService';
 import { getUserPreferences, hasExplicitPreferences } from '@/services/preferenceService';
 import { GenerationContext, RetrievedMemory, StyleProfile } from '@/types';
 
-const COGNITION_TOP_K = parseInt(process.env.COGNITION_TOP_K || '4', 10);
+const COGNITION_TOP_K = parseInt(process.env.COGNITION_TOP_K || '2', 10);
+const COGNITION_MIN_SIMILARITY = parseFloat(process.env.COGNITION_MIN_SIMILARITY || '0.76');
 const STOP_WORDS = new Set([
   'about', 'after', 'again', 'being', 'between', 'could', 'every', 'founder', 'from', 'have', 'just',
   'like', 'more', 'only', 'over', 'same', 'some', 'such', 'than', 'that', 'their', 'there', 'these',
@@ -162,10 +163,8 @@ const buildToneLabels = (posts: UserPostSummary[], onboardingText: string): stri
   if ((allText.match(/!/g) || []).length > posts.length) {
     labels.push('energetic');
   }
-  if (stripEmoji(allText)) {
-    labels.push('emoji-friendly');
-  } else {
-    labels.push('minimalist');
+  if (!stripEmoji(allText)) {
+    labels.push('clean, no-emoji style');
   }
   if (/\bstory|experience|journey\b/i.test(onboardingText)) {
     labels.push('story-driven');
@@ -323,7 +322,7 @@ const fallbackSimilaritySearch = async (
       row: memory,
       score: cosineSimilarity(queryEmbedding, safeNumberArray(memory.embedding_json)),
     }))
-    .filter((entry) => entry.score > 0)
+    .filter((entry) => entry.score >= COGNITION_MIN_SIMILARITY)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map((entry) => toRetrievedMemory(entry.row, entry.score));
@@ -361,6 +360,11 @@ export const getGenerationContextForDevice = async (
   } catch {
     memories = [];
   }
+
+  // Filter out low-similarity memories — only keep relevant references
+  memories = memories
+    .filter((m) => m.similarity >= COGNITION_MIN_SIMILARITY)
+    .slice(0, options?.limit || COGNITION_TOP_K);
 
   return {
     memories,

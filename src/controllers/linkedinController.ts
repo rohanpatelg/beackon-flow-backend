@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { generateHooksFromTopic, generatePostFromHook, recommendIntention, publishToLinkedIn, regenerateSection as regenerateSectionService, SectionKey, PostSections, generateTopicSuggestions } from '@/services/linkedinService';
 import { updatePostLinkedInMetadata, updatePostStatusInDb, insertDraftPostInDb, fetchRecentTopicsFromDb, getTotalPostCountFromDb } from '@/repositories/postsRepository';
-import { buildHookMemoryPrompt, buildPostMemoryPrompt, buildSuggestionMemoryPrompt } from '@/services/memoryPromptService';
+import { buildSuggestionMemoryPrompt } from '@/services/memoryPromptService';
 import { getGenerationContextForDevice, recomputeStyleProfileForDevice, syncPostMemoryForPost } from '@/services/cognitiveMemoryService';
 
 /**
@@ -23,14 +23,8 @@ export const generateHooks = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const userProfile = undefined;
-    const generationContext = deviceId
-      ? await getGenerationContextForDevice(deviceId, topic.trim())
-      : null;
-    const memoryPrompt = generationContext ? buildHookMemoryPrompt(generationContext) : '';
-
-    // Generate hooks using AI
-    const hooks = await generateHooksFromTopic(topic.trim(), userProfile, memoryPrompt);
+    // Generate hooks using AI (no memory context — kept fresh)
+    const hooks = await generateHooksFromTopic(topic.trim());
 
     res.status(200).json({
       success: true,
@@ -75,19 +69,11 @@ export const generatePost = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    const userProfile = undefined;
-    const generationContext = deviceId
-      ? await getGenerationContextForDevice(deviceId, `${topic.trim()}\n${hook.trim()}`)
-      : null;
-    const memoryPrompt = generationContext ? buildPostMemoryPrompt(generationContext) : '';
-
-    // Generate post using AI with the selected content framework
+    // Generate post using AI (no memory context — kept fresh)
     const result = await generatePostFromHook(
       hook.trim(),
       topic.trim(),
-      intention?.trim(),
-      userProfile,
-      memoryPrompt
+      intention?.trim()
     );
 
     res.status(200).json({

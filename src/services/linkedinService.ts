@@ -47,10 +47,8 @@ Return ONLY a JSON array of strings, nothing else. Example format:
   let userPrompt = `Topic: ${topic}`;
 
   if (memoryPrompt) {
-    userPrompt += `\n\nFounder writing memory:
-${memoryPrompt}
-
-Use this memory to align with the founder's preferences and voice. Do not copy prior posts verbatim.`;
+    userPrompt += `\n\nFounder context (reference only):
+${memoryPrompt}`;
   }
 
   // Add user profile context if available for personalization
@@ -350,7 +348,7 @@ Guidelines for each section:
 Overall guidelines:
 - Each section should flow naturally into the next
 - Use professional yet conversational tone
-- Include relevant emojis sparingly (1-2 total across all sections)
+- Do NOT use any emojis anywhere in the post
 - Keep total content under 1000 characters (hook adds ~200 more)
 ${intention ? `- Structure the content following the "${intention}" framework pattern` : ''}
 
@@ -377,7 +375,7 @@ Topic: ${topic}`;
   }
 
   if (memoryPrompt) {
-    userPrompt += `\n\nFounder writing memory:
+    userPrompt += `\n\nFounder context (reference only):
 ${memoryPrompt}`;
   }
 
@@ -473,7 +471,7 @@ Guidelines:
 - Make it different from the current version but maintain coherence with the rest of the post
 - Use professional yet conversational tone
 - Keep the same general message but express it differently
-- You may add 1 emoji if appropriate
+- Do NOT use any emojis
 - Ensure it flows naturally with the sections before and after it
 
 CRITICAL: Return ONLY the raw content text for this section.
