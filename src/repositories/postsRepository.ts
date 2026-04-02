@@ -206,8 +206,8 @@ export const updatePostStatusInDb = async (postId: number, deviceId: string, sta
   const query = `
     UPDATE public.m_users_posts
     SET
-      status = $1,
-      published_at = CASE WHEN $1 = 2 THEN NOW() ELSE NULL END,
+      status = $1::smallint,
+      published_at = CASE WHEN $1::smallint = 2 THEN NOW() ELSE NULL END,
       updated_at = NOW()
     WHERE id = $2 AND device_id = $3 AND is_deleted = false
     RETURNING *
