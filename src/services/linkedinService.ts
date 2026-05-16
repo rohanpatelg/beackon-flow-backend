@@ -1,6 +1,16 @@
 import { generateChatCompletion } from './openaiService';
 import axios from 'axios';
 import { WebSearchContext } from '@/types';
+import { buildAvatarContextBlock } from './avatarIntegrationService';
+import {
+  HOOKS_SCHEMA,
+  POST_GENERATION_SCHEMA,
+  POST_SECTIONS_SCHEMA,
+  TOPIC_SUGGESTIONS_SCHEMA,
+} from './llmSchemas';
+
+const withAvatar = (systemPrompt: string, avatarBlock: string | null): string =>
+  avatarBlock ? `${avatarBlock}\n\n${systemPrompt}` : systemPrompt;
 
 // LinkedIn API base URL
 const LINKEDIN_API_BASE = 'https://api.linkedin.com';
@@ -28,9 +38,11 @@ interface LinkedInPublishResult {
  */
 export const generateHooksFromTopic = async (
   topic: string,
-  webContext?: WebSearchContext | null
+  webContext?: WebSearchContext | null,
+  deviceId?: string
 ): Promise<string[]> => {
-  const systemPrompt = `You are an expert LinkedIn content creator specializing in creating engaging hooks that capture attention.
+  const avatarBlock = await buildAvatarContextBlock(deviceId);
+  const baseSystem = `You are an expert LinkedIn content creator specializing in creating engaging hooks that capture attention.
 
 Your task is to generate 3-5 compelling hooks for LinkedIn posts based on the given topic.
 
@@ -43,6 +55,7 @@ Guidelines:
 
 Return ONLY a JSON array of strings, nothing else. Example format:
 ["Hook 1 text here", "Hook 2 text here", "Hook 3 text here"]`;
+  const systemPrompt = withAvatar(baseSystem, avatarBlock);
 
   let userPrompt = `Topic: ${topic}`;
 
@@ -58,6 +71,9 @@ ${webContext.results.map(r => `- ${r.title}: ${r.snippet}`).join('\n')}`;
     const response = await generateChatCompletion(
       systemPrompt,
       userPrompt,
+      undefined,
+      undefined,
+      { jsonSchema: HOOKS_SCHEMA },
     );
 
     // Parse the JSON response
@@ -137,7 +153,8 @@ Apply voice and originality refinement to make this sound authentically human.`;
       systemPrompt,
       userPrompt,
       REFINEMENT_MODEL,
-      0.7
+      0.7,
+      { jsonSchema: POST_SECTIONS_SCHEMA },
     );
 
     const refined = JSON.parse(response);
@@ -211,7 +228,8 @@ Apply logic and authority refinement to make this clear, skimmable, and impactfu
       systemPrompt,
       userPrompt,
       REFINEMENT_MODEL,
-      0.5
+      0.5,
+      { jsonSchema: POST_SECTIONS_SCHEMA },
     );
 
     const polished = JSON.parse(response);
@@ -309,8 +327,10 @@ export const generatePostFromHook = async (
   hook: string,
   topic: string,
   intention?: string,
-  webContext?: WebSearchContext | null
+  webContext?: WebSearchContext | null,
+  deviceId?: string
 ): Promise<{ sections: PostSections; design_idea: string }> => {
+  const avatarBlock = await buildAvatarContextBlock(deviceId);
   // Framework-specific instructions
   const frameworkInstructions: { [key: string]: string } = {
     'Story → Insight → Shift': 'Share a personal story or example, extract a key insight from it, then show how that insight shifts perspective or challenges assumptions.',
@@ -329,7 +349,7 @@ export const generatePostFromHook = async (
 Structure your post sections using this pattern: ${frameworkInstructions[intention]}`
     : '';
 
-  const systemPrompt = `You are an expert LinkedIn content creator who writes engaging, professional posts.
+  const baseGenerationSystem = `You are an expert LinkedIn content creator who writes engaging, professional posts.
 
 Your task is to create LinkedIn post content in STRUCTURED SECTIONS based on the given hook and topic.${frameworkGuidance}
 
@@ -362,6 +382,7 @@ Return ONLY a JSON object with this exact format:
   "cta": "Call-to-action or question here...",
   "design_idea": "Description of visual/design suggestion here"
 }`;
+  const systemPrompt = withAvatar(baseGenerationSystem, avatarBlock);
 
   let userPrompt = `Hook (will be used as-is at the start of the post): "${hook}"
 
@@ -384,7 +405,10 @@ ${webContext.results.map(r => `- ${r.title}: ${r.snippet}`).join('\n')}`;
     console.log('4A: Generating base post draft...');
     const response = await generateChatCompletion(
       systemPrompt,
-      userPrompt
+      userPrompt,
+      undefined,
+      undefined,
+      { jsonSchema: POST_GENERATION_SCHEMA },
     );
 
     // Parse the JSON response
@@ -530,8 +554,10 @@ Please generate a NEW version of the "${sectionKey}" section that is different f
  */
 export const recommendIntention = async (
   hook: string,
-  topic: string
+  topic: string,
+  deviceId?: string
 ): Promise<string> => {
+  const avatarBlock = await buildAvatarContextBlock(deviceId);
   // Available frameworks
   const frameworks = [
     'Story → Insight → Shift',
@@ -545,7 +571,7 @@ export const recommendIntention = async (
     'Fast Rant → Clarifier → Resolution'
   ];
 
-  const systemPrompt = `You are a LinkedIn content strategist expert. Your task is to analyze a hook and topic, then recommend the BEST content framework from the provided list.
+  const baseIntentSystem = `You are a LinkedIn content strategist expert. Your task is to analyze a hook and topic, then recommend the BEST content framework from the provided list.
 
 Consider:
 - Which framework naturally fits the hook's style and tone
@@ -554,6 +580,7 @@ Consider:
 - Professional LinkedIn audience expectations
 
 Respond with ONLY the exact framework name from the list, nothing else.`;
+  const systemPrompt = withAvatar(baseIntentSystem, avatarBlock);
 
   const userPrompt = `Hook: "${hook}"
 Topic: "${topic}"
@@ -634,7 +661,8 @@ Based on these themes and my content patterns, suggest ${count} fresh topic idea
       systemPrompt,
       userPrompt,
       undefined,
-      0.8
+      0.8,
+      { jsonSchema: TOPIC_SUGGESTIONS_SCHEMA },
     );
 
     const suggestions = JSON.parse(response);

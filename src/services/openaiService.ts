@@ -1,75 +1,46 @@
+/**
+ * OpenAI client owner. Hosts the embeddings call (which is OpenAI-only —
+ * Anthropic has no embeddings API and pgvector storage depends on the
+ * 1536-dim OpenAI vectors already in m_post_memories).
+ *
+ * Chat completions are routed through llmService — the export below is a
+ * pass-through so existing call sites (`import { generateChatCompletion }
+ * from './openaiService'`) keep working unchanged.
+ */
+
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const OPEN_AI_MODEL = process.env.OPEN_AI_MODEL || 'gpt-5-2025-08-07';
-const OPENAI_MAX_TOKENS = process.env.OPENAI_MAX_TOKENS || 2000;
 const OPENAI_EMBEDDING_MODEL = process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small';
 
-// Initialize OpenAI client
+// Initialize OpenAI client (used here for embeddings; chat goes through llmService)
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
 /**
- * Check if OpenAI is properly configured
+ * Re-export the unified chat completion. Existing imports keep working;
+ * the actual provider (OpenAI or Claude) is decided inside llmService
+ * based on LLM_PROVIDER env var.
+ */
+export { generateChatCompletion } from './llmService';
+
+/**
+ * Check if OpenAI is properly configured (still needed for embeddings).
  */
 export const isOpenAIConfigured = (): boolean => {
   return !!process.env.OPENAI_API_KEY;
 };
 
 /**
- * Generate chat completion using OpenAI
- * @param systemPrompt - System message to set context
- * @param userPrompt - User message/question
- * @param model - OpenAI model to use (default: OPEN_AI_MODEL)
- * @param temperature - Creativity level 0-2 (default: 0.7)
+ * Generate an embedding. Always uses OpenAI regardless of LLM_PROVIDER.
  */
-export const generateChatCompletion = async (
-  systemPrompt: string,
-  userPrompt: string,
-  model: string = OPEN_AI_MODEL,
-  temperature: number = 0.5
-): Promise<string> => {
-  try {
-    if (!isOpenAIConfigured()) {
-      throw new Error('OpenAI API key not configured');
-    }
-
-    const response = await openai.chat.completions.create({
-      model: model,
-      messages: [
-        {
-          role: 'system',
-          content: systemPrompt,
-        },
-        {
-          role: 'user',
-          content: userPrompt,
-        },
-      ],
- 
-    });
-
-    const content = response.choices[0]?.message?.content;
-    console.log(response.choices[0]);
-
-    if (!content) {
-      throw new Error('No content returned from OpenAI');
-    }
-
-    return content.trim();
-  } catch (error: any) {
-    console.error('OpenAI API error:', error.message);
-    throw new Error(`OpenAI completion failed: ${error.message}`);
-  }
-};
-
 export const generateEmbedding = async (input: string): Promise<number[]> => {
   try {
     if (!isOpenAIConfigured()) {
-      throw new Error('OpenAI API key not configured');
+      throw new Error('OpenAI API key not configured (required for embeddings)');
     }
 
     const response = await openai.embeddings.create({
@@ -90,6 +61,6 @@ export const generateEmbedding = async (input: string): Promise<number[]> => {
 };
 
 /**
- * Export the client for direct use if needed
+ * Export the client for direct use if needed.
  */
 export const openaiClient = openai;

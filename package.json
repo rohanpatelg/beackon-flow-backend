@@ -13,6 +13,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.96.0",
     "@supabase/supabase-js": "^2.75.0",
     "@types/cookie-parser": "^1.4.8",
     "@types/uuid": "^10.0.0",

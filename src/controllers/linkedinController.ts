@@ -35,7 +35,7 @@ export const generateHooks = async (req: Request, res: Response): Promise<void> 
     }
 
     // Generate hooks using AI
-    const hooks = await generateHooksFromTopic(topic.trim(), webContext);
+    const hooks = await generateHooksFromTopic(topic.trim(), webContext, deviceId);
 
     res.status(200).json({
       success: true,
@@ -95,7 +95,8 @@ export const generatePost = async (req: Request, res: Response): Promise<void> =
       hook.trim(),
       topic.trim(),
       intention?.trim(),
-      webContext
+      webContext,
+      deviceId
     );
 
     res.status(200).json({
@@ -123,6 +124,7 @@ export const generatePost = async (req: Request, res: Response): Promise<void> =
 export const recommendContentIntention = async (req: Request, res: Response): Promise<void> => {
   try {
     const { hook, topic } = req.body;
+    const deviceId = req.deviceId;
 
     // Validate input
     if (!hook || typeof hook !== 'string' || hook.trim().length === 0) {
@@ -142,7 +144,7 @@ export const recommendContentIntention = async (req: Request, res: Response): Pr
     }
 
     // Get AI recommendation for best content framework
-    const intention = await recommendIntention(hook.trim(), topic.trim());
+    const intention = await recommendIntention(hook.trim(), topic.trim(), deviceId);
 
     res.status(200).json({
       success: true,
